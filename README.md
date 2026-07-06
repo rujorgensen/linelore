@@ -41,7 +41,7 @@ It works fully offline today. Everything below is built on `git log -L`.
 ## Install
 
 ```sh
-npm install -g linelore   # (not yet published — see Development)
+npm install -g linelore
 ```
 
 ## Usage

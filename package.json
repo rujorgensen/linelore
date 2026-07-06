@@ -21,6 +21,14 @@
     "engines": {
         "node": ">=20"
     },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/rujorgensen/linelore.git"
+    },
+    "homepage": "https://github.com/rujorgensen/linelore#readme",
+    "bugs": {
+        "url": "https://github.com/rujorgensen/linelore/issues"
+    },
     "keywords": [
         "git",
         "blame",
