@@ -1,0 +1,37 @@
+{
+    "name": "linelore",
+    "version": "0.1.0",
+    "description": "The lore of a line of code — trace a single line's full history through edits and renames.",
+    "type": "module",
+    "bin": {
+        "linelore": "dist/cli.js"
+    },
+    "exports": {
+        ".": "./dist/index.js"
+    },
+    "files": [
+        "dist"
+    ],
+    "scripts": {
+        "build": "tsc",
+        "dev": "node src/cli.ts",
+        "test": "npm run build && node --test \"dist/**/*.test.js\"",
+        "prepublishOnly": "npm run build"
+    },
+    "engines": {
+        "node": ">=20"
+    },
+    "keywords": [
+        "git",
+        "blame",
+        "history",
+        "line",
+        "provenance",
+        "code-archaeology"
+    ],
+    "license": "MIT",
+    "devDependencies": {
+        "@types/node": "^26.1.0",
+        "typescript": "^6.0.3"
+    }
+}
