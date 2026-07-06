@@ -15,7 +15,7 @@
     "scripts": {
         "build": "tsc",
         "dev": "node src/cli.ts",
-        "test": "npm run build && node --test \"dist/**/*.test.js\"",
+        "test": "tsc -p tsconfig.test.json && node --test \"dist-test/**/*.test.js\"",
         "prepublishOnly": "npm run build"
     },
     "engines": {
