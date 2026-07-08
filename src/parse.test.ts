@@ -53,6 +53,61 @@ test('ignores +++/--- file headers when collecting changes', () => {
     assert.deepEqual(e?.added, ['new']);
 });
 
+test('keeps content lines that look like +++/--- file headers', () => {
+    // A markdown `---` rule shows up as `----` once the `-` marker is prepended.
+    const raw = record(
+        { sha: 'd'.repeat(40), author: 'Di', date: '2026-01-04T00:00:00Z', subject: 'rule' },
+        [
+            'diff --git a/doc.md b/doc.md',
+            '--- a/doc.md',
+            '+++ b/doc.md',
+            '@@ -2,1 +2,1 @@',
+            '----',
+            '+--- changed',
+            '+++added',
+        ].join('\n'),
+    );
+    const e = parseLog(raw)[0];
+    assert.deepEqual(e?.removed, ['---']);
+    assert.deepEqual(e?.added, ['--- changed', '++added']);
+});
+
+test('collects changes across multiple hunks in one commit', () => {
+    const raw = record(
+        { sha: 'e'.repeat(40), author: 'Eve', date: '2026-01-05T00:00:00Z', subject: 'two' },
+        [
+            '@@ -1,1 +1,1 @@',
+            '-a',
+            '+A',
+            '@@ -9,1 +9,1 @@',
+            ' context',
+            '-b',
+            '+B',
+        ].join('\n'),
+    );
+    const e = parseLog(raw)[0];
+    assert.deepEqual(e?.removed, ['a', 'b']);
+    assert.deepEqual(e?.added, ['A', 'B']);
+});
+
+test('ignores the rename preamble that follows a hunk', () => {
+    const raw = record(
+        { sha: 'f'.repeat(40), author: 'Fi', date: '2026-01-06T00:00:00Z', subject: 'mv' },
+        [
+            '@@ -1,1 +1,1 @@',
+            '-old',
+            '+new',
+            'diff --git a/x.ts b/y.ts',
+            'similarity index 98%',
+            '--- a/x.ts',
+            '+++ b/y.ts',
+        ].join('\n'),
+    );
+    const e = parseLog(raw)[0];
+    assert.deepEqual(e?.removed, ['old']);
+    assert.deepEqual(e?.added, ['new']);
+});
+
 test('returns newest-first for multiple commits', () => {
     const raw =
         record({ sha: '1'.repeat(40), author: 'A', date: '2026-02-01T00:00:00Z', subject: 'newer' },
