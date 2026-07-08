@@ -51,7 +51,27 @@ linelore <file>:<line>            # trace a single line
 linelore <file> <line>            # same, space-separated
 linelore <file> <start> <end>     # trace a line range
 linelore <file>:<line> --json     # structured output for tooling
+linelore <file>:<line> --at-head  # line numbers are HEAD's, not the working tree's
 ```
+
+### Uncommitted changes
+
+Line numbers mean what your editor shows. If the file has uncommitted changes,
+`linelore` maps the line back to `HEAD` before tracing it, so `:42` follows the
+line you are actually looking at rather than whatever now sits at line 42 of the
+last commit:
+
+```
+$ linelore src/auth.ts:42
+the lore of src/auth.ts:42
+  uncommitted changes above · that's HEAD 39
+  ...
+```
+
+If the line is one you are editing right now, `linelore` traces the history of
+the text it replaced — usually exactly the "why" you were reaching for. A line
+you have only just typed has no history, and it says so instead of guessing.
+Pass `--at-head` to opt out and number lines as of the last commit.
 
 ## Roadmap
 
@@ -60,7 +80,7 @@ linelore <file>:<line> --json     # structured output for tooling
 - [ ] **Intent synthesis** — an optional layer that reads the arc of changes and
       summarizes *why* the line evolved the way it did (opt-in, brings its own
       model). The engine already exposes a clean `Lineage` object for this.
-- [ ] Follow a line by content when its number has drifted in the working tree
+- [x] Follow a line whose number has drifted in the working tree
 - [ ] Pull in the merging PR's discussion for each commit
 - [ ] A web view: paste a permalink, get the reel
 

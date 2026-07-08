@@ -5,6 +5,17 @@ import { dirname, basename } from 'node:path';
 const run = promisify(execFile);
 
 /**
+ * Surface what git actually said. `execFile` rejects with "Command failed:
+ * <the whole argv>", which buries git's own one-line explanation in stderr.
+ */
+export function gitMessage(err: unknown, args: readonly string[]): string {
+    const stderr = String((err as { stderr?: unknown })?.stderr ?? '');
+    const first = stderr.split('\n').find((l) => l.trim().length > 0);
+    if (!first) return `git ${args[0] ?? ''} failed`.trim();
+    return first.trim().replace(/^fatal:\s*/, '');
+}
+
+/**
  * Thin wrapper around the git CLI. Everything runs with `cwd` set to the
  * directory of the target file so relative pathspecs resolve, and with a
  * generous buffer since `-L` histories can be large.
@@ -17,11 +28,15 @@ export class Git {
     }
 
     private async git(args: readonly string[]): Promise<string> {
-        const { stdout } = await run('git', args, {
-            cwd: this.cwd,
-            maxBuffer: 64 * 1024 * 1024,
-        });
-        return stdout;
+        try {
+            const { stdout } = await run('git', args, {
+                cwd: this.cwd,
+                maxBuffer: 64 * 1024 * 1024,
+            });
+            return stdout;
+        } catch (err) {
+            throw new Error(gitMessage(err, args));
+        }
     }
 
     /** Repo root, or throws a friendly error if we're not in a repo. */
@@ -40,6 +55,30 @@ export class Git {
             return true;
         } catch {
             return false;
+        }
+    }
+
+    /**
+     * Zero-context diff of the working tree (including staged changes) against
+     * HEAD, for mapping working-tree line numbers back to HEAD.
+     *
+     * Returns '' when there is no HEAD to diff against (a repo with no commits),
+     * which the caller correctly reads as "no drift".
+     */
+    async diffFromHead(file: string): Promise<string> {
+        const rel = basename(file);
+        try {
+            return await this.git([
+                'diff',
+                '--no-color',
+                '--no-ext-diff',
+                '-U0',
+                'HEAD',
+                '--',
+                rel,
+            ]);
+        } catch {
+            return '';
         }
     }
 

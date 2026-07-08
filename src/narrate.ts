@@ -32,14 +32,32 @@ const KIND_GLYPH: Record<LineEvent['kind'], string> = {
  * Render a {@link Lineage} as a human-readable terminal narrative, newest
  * change first. `now` is injected so output is deterministic in tests.
  */
+const fmtRange = (start: number, end: number): string =>
+    start === end ? `${start}` : `${start}-${end}`;
+
 export function narrate(lineage: Lineage, now = new Date()): string {
-    const { file, startLine, endLine, events } = lineage;
+    const { file, startLine, endLine, drift, events } = lineage;
     const out: string[] = [];
 
-    const range = startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`;
+    // Name the line the *user* named; the HEAD range is an implementation
+    // detail they only need when the two disagree.
+    const asked = drift
+        ? fmtRange(drift.requestedStart, drift.requestedEnd)
+        : fmtRange(startLine, endLine);
     out.push(
-        bold(`the lore of ${cyan(file)}:${cyan(range)}`),
+        bold(`the lore of ${cyan(file)}:${cyan(asked)}`),
     );
+
+    if (drift) {
+        const head = fmtRange(startLine, endLine);
+        out.push(
+            dim(
+                drift.rewritten
+                    ? `  uncommitted here · tracing what it replaced, HEAD ${head}`
+                    : `  uncommitted changes above · that's HEAD ${head}`,
+            ),
+        );
+    }
 
     if (events.length === 0) {
         out.push(dim('  no history found for this line range'));
