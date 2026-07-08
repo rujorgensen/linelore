@@ -10,8 +10,9 @@ Usage:
   linelore <file> <start> <end>     trace a line range
 
 Options:
-  --json     emit structured JSON instead of the narrative
-  -h, --help show this help
+  --json      emit structured JSON instead of the narrative
+  --at-head   line numbers are HEAD's, not the working tree's
+  -h, --help  show this help
 
 Examples:
   linelore src/auth.ts:42
@@ -23,15 +24,18 @@ interface ParsedArgs {
     start: number;
     end: number;
     json: boolean;
+    atHead: boolean;
 }
 
 /** Parse argv into a target file + line range. Throws on malformed input. */
 function parseArgs(argv: readonly string[]): ParsedArgs {
     const positional: string[] = [];
     let json = false;
+    let atHead = false;
 
     for (const arg of argv) {
         if (arg === '--json') json = true;
+        else if (arg === '--at-head') atHead = true;
         else if (arg === '-h' || arg === '--help') throw new HelpRequested();
         else if (arg.startsWith('-')) throw new Error(`unknown option: ${arg}`);
         else positional.push(arg);
@@ -42,7 +46,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
         const m = positional[0]!.match(/^(.*):(\d+)$/);
         if (!m) throw new Error('expected <file>:<line> or <file> <line>');
         const line = Number(m[2]);
-        return { file: m[1]!, start: line, end: line, json };
+        return { file: m[1]!, start: line, end: line, json, atHead };
     }
 
     const [file, startRaw, endRaw] = positional;
@@ -54,7 +58,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
     if (!Number.isInteger(start) || !Number.isInteger(end)) {
         throw new Error('line numbers must be integers');
     }
-    return { file, start, end, json };
+    return { file, start, end, json, atHead };
 }
 
 class HelpRequested extends Error {}
@@ -74,7 +78,9 @@ async function main(): Promise<void> {
     }
 
     try {
-        const lineage = await trace(parsed.file, parsed.start, parsed.end);
+        const lineage = await trace(parsed.file, parsed.start, parsed.end, {
+            atHead: parsed.atHead,
+        });
         if (parsed.json) {
             process.stdout.write(JSON.stringify(lineage, null, 2) + '\n');
         } else {

@@ -25,11 +25,26 @@ export interface LineEvent {
     readonly kind: 'born' | 'edited' | 'deleted';
 }
 
+/**
+ * How the line numbers actually traced differ from the ones the user asked for,
+ * because the working tree has uncommitted changes above (or on) the line.
+ */
+export interface Drift {
+    /** The working-tree line range the user named. */
+    readonly requestedStart: number;
+    readonly requestedEnd: number;
+    /** True when the requested lines were themselves rewritten, not just moved. */
+    readonly rewritten: boolean;
+}
+
 /** The full biography of a line range: newest change first. */
 export interface Lineage {
     readonly file: string;
+    /** The HEAD line range that was traced. */
     readonly startLine: number;
     readonly endLine: number;
+    /** Present only when the working tree shifted the requested range. */
+    readonly drift?: Drift;
     /** Newest → oldest. The last entry is the line's birth. */
     readonly events: readonly LineEvent[];
 }
