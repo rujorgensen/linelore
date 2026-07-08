@@ -50,8 +50,13 @@ export function parseLog(raw: string): LineEvent[] {
 }
 
 /**
- * Pull the +/- lines out of a unified-diff body, ignoring the `+++`/`---`
- * file headers. Content is trimmed of the single leading diff marker only.
+ * Pull the +/- lines out of a unified-diff body. Content is trimmed of the
+ * single leading diff marker only.
+ *
+ * Only lines *inside* a hunk carry content, so we gate on `@@` rather than
+ * pattern-matching the `---`/`+++` headers: a source line whose own text
+ * begins with `---` or `+++` (markdown rules, YAML separators, C++ operators)
+ * is indistinguishable from a header once the diff marker is prepended.
  */
 function extractChanges(body: string): {
     removed: string[];
@@ -59,11 +64,22 @@ function extractChanges(body: string): {
 } {
     const removed: string[] = [];
     const added: string[] = [];
+    let inHunk = false;
 
     for (const line of body.split('\n')) {
-        if (line.startsWith('+++') || line.startsWith('---')) continue;
-        if (line.startsWith('+')) added.push(line.slice(1));
-        else if (line.startsWith('-')) removed.push(line.slice(1));
+        if (line.startsWith('@@')) {
+            inHunk = true;
+        } else if (line.startsWith('diff --git ')) {
+            // A rename can produce a second file header after the first hunk.
+            inHunk = false;
+        } else if (!inHunk) {
+            continue; // preamble: index, mode, similarity, ---/+++ headers
+        } else if (line.startsWith('+')) {
+            added.push(line.slice(1));
+        } else if (line.startsWith('-')) {
+            removed.push(line.slice(1));
+        }
+        // Anything else inside a hunk is context (' ') or `\ No newline…`.
     }
 
     return { removed, added };
