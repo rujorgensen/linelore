@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { trace } from './trace.js';
 import { narrate, narrateWhy } from './narrate.js';
-import { synthesizeWhy } from './why.js';
+import { synthesizeWhy, WHY_PROVIDERS, type WhyProvider } from './why.js';
 
 const USAGE = `linelore — the lore of a line of code
 
@@ -13,15 +13,19 @@ Usage:
 Options:
   --json         emit structured JSON instead of the narrative
   --at-head      line numbers are HEAD's, not the working tree's
-  --why          ask Claude why the line evolved this way
-                 (needs ANTHROPIC_API_KEY)
-  --model <id>   model for --why (default: claude-opus-4-8)
-  -h, --help     show this help
+  --why              ask a model why the line evolved this way
+  --provider <name>  API for --why: anthropic (default, needs
+                     ANTHROPIC_API_KEY), mistral or vibe (needs
+                     MISTRAL_API_KEY), or openai (any OpenAI-compatible
+                     endpoint, needs OPENAI_API_KEY + --model)
+  --model <id>       model for --why (defaults per provider)
+  -h, --help         show this help
 
 Examples:
   linelore src/auth.ts:42
   linelore src/auth.ts 40 55 --json
   linelore src/auth.ts:42 --why
+  linelore src/auth.ts:42 --why --provider mistral
 `;
 
 interface ParsedArgs {
@@ -31,7 +35,20 @@ interface ParsedArgs {
     json: boolean;
     atHead: boolean;
     why: boolean;
+    provider: WhyProvider | undefined;
     model: string | undefined;
+}
+
+function parseProvider(value: string | undefined): WhyProvider {
+    if (!value) throw new Error('--provider needs a value');
+    // Vibe is Mistral's product; its API keys are Mistral API keys.
+    if (value === 'vibe') return 'mistral';
+    if (!(WHY_PROVIDERS as readonly string[]).includes(value)) {
+        throw new Error(
+            `unknown provider: ${value} (expected ${WHY_PROVIDERS.join(', ')})`,
+        );
+    }
+    return value as WhyProvider;
 }
 
 /** Parse argv into a target file + line range. Throws on malformed input. */
@@ -40,6 +57,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
     let json = false;
     let atHead = false;
     let why = false;
+    let provider: WhyProvider | undefined;
     let model: string | undefined;
 
     for (let i = 0; i < argv.length; i++) {
@@ -47,7 +65,10 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
         if (arg === '--json') json = true;
         else if (arg === '--at-head') atHead = true;
         else if (arg === '--why') why = true;
-        else if (arg === '--model') {
+        else if (arg === '--provider') provider = parseProvider(argv[++i]);
+        else if (arg.startsWith('--provider=')) {
+            provider = parseProvider(arg.slice('--provider='.length));
+        } else if (arg === '--model') {
             model = argv[++i];
             if (!model) throw new Error('--model needs a value');
         } else if (arg.startsWith('--model=')) {
@@ -58,7 +79,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
         else positional.push(arg);
     }
 
-    const base = { json, atHead, why, model };
+    const base = { json, atHead, why, provider, model };
 
     // `file:line` shorthand.
     if (positional.length === 1) {
@@ -114,7 +135,10 @@ async function main(): Promise<void> {
         // trip, and keep it even if that round trip fails.
         if (!parsed.json) process.stdout.write(narrate(lineage) + '\n\n');
         try {
-            const why = await synthesizeWhy(lineage, { model: parsed.model });
+            const why = await synthesizeWhy(lineage, {
+                provider: parsed.provider,
+                model: parsed.model,
+            });
             process.stdout.write(
                 parsed.json
                     ? JSON.stringify({ ...lineage, why }, null, 2) + '\n'

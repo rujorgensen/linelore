@@ -147,6 +147,82 @@ test('a refusal is reported, not rendered as a summary', async () => {
     );
 });
 
+const OPENAI_STYLE_RESPONSE = {
+    choices: [{ message: { content: 'It hardened over time.' } }],
+};
+
+test('mistral provider speaks chat-completions with its own key and default model', async () => {
+    const { fetchFn, calls } = fakeFetch(OPENAI_STYLE_RESPONSE);
+    const text = await synthesizeWhy(LINEAGE, {
+        fetchFn,
+        provider: 'mistral',
+        env: { MISTRAL_API_KEY: 'mk-test' },
+    });
+
+    assert.equal(text, 'It hardened over time.');
+    const [call] = calls;
+    assert.equal(call?.url, 'https://api.mistral.ai/v1/chat/completions');
+    const headers = call!.init.headers as Record<string, string>;
+    assert.equal(headers['authorization'], 'Bearer mk-test');
+    const body = JSON.parse(String(call!.init.body));
+    assert.equal(body.model, 'mistral-large-latest');
+    assert.equal(body.messages[0].role, 'system');
+    assert.match(body.messages[1].content, /initial auth guard/);
+});
+
+test('mistral without a key names MISTRAL_API_KEY', async () => {
+    const { fetchFn, calls } = fakeFetch(OPENAI_STYLE_RESPONSE);
+    await assert.rejects(
+        synthesizeWhy(LINEAGE, { fetchFn, provider: 'mistral', env: {} }),
+        /MISTRAL_API_KEY/,
+    );
+    assert.equal(calls.length, 0);
+});
+
+test('openai provider requires an explicit model', async () => {
+    const { fetchFn, calls } = fakeFetch(OPENAI_STYLE_RESPONSE);
+    await assert.rejects(
+        synthesizeWhy(LINEAGE, {
+            fetchFn,
+            provider: 'openai',
+            env: { OPENAI_API_KEY: 'ok-test' },
+        }),
+        /--model/,
+    );
+    assert.equal(calls.length, 0);
+});
+
+test('openai provider honors OPENAI_BASE_URL for compatible endpoints', async () => {
+    const { fetchFn, calls } = fakeFetch(OPENAI_STYLE_RESPONSE);
+    await synthesizeWhy(LINEAGE, {
+        fetchFn,
+        provider: 'openai',
+        model: 'llama3',
+        env: {
+            OPENAI_API_KEY: 'ok-test',
+            OPENAI_BASE_URL: 'http://localhost:11434',
+        },
+    });
+
+    assert.equal(calls[0]?.url, 'http://localhost:11434/v1/chat/completions');
+    assert.equal(JSON.parse(String(calls[0]!.init.body)).model, 'llama3');
+});
+
+test("a mistral-style top-level error message is surfaced", async () => {
+    const { fetchFn } = fakeFetch(
+        { message: 'Unauthorized' },
+        { ok: false, status: 401 },
+    );
+    await assert.rejects(
+        synthesizeWhy(LINEAGE, {
+            fetchFn,
+            provider: 'mistral',
+            env: { MISTRAL_API_KEY: 'bad' },
+        }),
+        /mistral API: Unauthorized/,
+    );
+});
+
 test('an empty lineage is rejected without a request', async () => {
     const { fetchFn, calls } = fakeFetch(OK_RESPONSE);
     await assert.rejects(

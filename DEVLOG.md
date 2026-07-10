@@ -3,6 +3,27 @@
 Working notes. Newest first. Reasoning, verification, and mistakes — the stuff
 that doesn't belong in a commit message but is worth not re-deriving.
 
+## 2026-07-10 — --why providers (`feat/why-providers`)
+
+rj wanted `--why` to work with his Vibe account. "Vibe" turned out to be
+Mistral's coding product — its API keys are Mistral API keys — so the real
+feature is a second wire protocol: OpenAI-compatible chat completions, which
+buys Mistral, OpenRouter, and local Ollama in one move.
+
+`why.ts` now builds a `WireRequest` per provider: `anthropic` (unchanged),
+`mistral` (default `mistral-large-latest`, `MISTRAL_API_KEY`), and generic
+`openai` (`OPENAI_BASE_URL` + `OPENAI_API_KEY`, `--model` mandatory — no
+default model name survives contact with N different endpoints). The CLI
+accepts `--provider vibe` as an alias for `mistral`, since that's the word a
+Vibe user will reach for. Error-shape wrinkle: OpenAI-style APIs nest the
+message under `error.message`, Mistral sometimes puts it at the top level —
+we read both.
+
+Verified against a local chat-completions stub via `MISTRAL_BASE_URL`:
+system+user roles, bearer auth, default model, extraction, and the
+unknown-provider error. Still no live run (rj's Vibe key untested as of this
+entry — that's the next real-world signal to watch for).
+
 ## 2026-07-10 — intent synthesis (`feat/why-synthesis`)
 
 `--why` sends the lineage to Claude and prints a 2–4 sentence reading of why
