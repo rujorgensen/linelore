@@ -21,8 +21,11 @@ we read both.
 
 Verified against a local chat-completions stub via `MISTRAL_BASE_URL`:
 system+user roles, bearer auth, default model, extraction, and the
-unknown-provider error. Still no live run (rj's Vibe key untested as of this
-entry — that's the next real-world signal to watch for).
+unknown-provider error. Then verified **live** with rj's Vibe key against
+the real Mistral API — first live run of the whole `--why` path. The model's
+answer even exercised the honesty clause, closing with "the record is too
+thin to confirm the broader context" on a single-commit lineage. That's the
+prompt doing its job on a provider it was never tuned against.
 
 ## 2026-07-10 — intent synthesis (`feat/why-synthesis`)
 
