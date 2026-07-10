@@ -92,12 +92,18 @@ why
   extraction that followed was housekeeping around that same decision.
 ```
 
-It is opt-in and bring-your-own-key: set `ANTHROPIC_API_KEY` (or
-`ANTHROPIC_AUTH_TOKEN`). `--model <id>` overrides the default
-(`claude-opus-4-8`), and `ANTHROPIC_BASE_URL` is honored for proxies. The
-prompt instructs the model to say when the record is too thin to support a
-conclusion rather than invent one. Everything else works offline; this is
-the only feature that talks to a network, and only when you ask.
+It is opt-in and bring-your-own-key. Three providers are supported:
+
+| `--provider` | Key | Default model | Notes |
+| --- | --- | --- | --- |
+| `anthropic` (default) | `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` | `claude-opus-4-8` | `ANTHROPIC_BASE_URL` honored |
+| `mistral` (alias: `vibe`) | `MISTRAL_API_KEY` | `mistral-large-latest` | Mistral Vibe accounts work here |
+| `openai` | `OPENAI_API_KEY` | — (`--model` required) | any OpenAI-compatible endpoint via `OPENAI_BASE_URL`, e.g. OpenRouter or a local Ollama |
+
+`--model <id>` overrides the default. The prompt instructs the model to say
+when the record is too thin to support a conclusion rather than invent one.
+Everything else works offline; this is the only feature that talks to a
+network, and only when you ask.
 
 ## Roadmap
 
