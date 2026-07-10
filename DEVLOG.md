@@ -28,8 +28,12 @@ Decisions worth remembering:
   Checked: headers, model override, prompt shape, wrapped rendering,
   `--json` gaining a `why` field, no-key error, refusal → error not output.
 
-No live-API run yet (no key in this environment). The request shape follows
-current docs: adaptive thinking, `max_tokens: 1024`, opus 4.8 default.
+The request shape follows current docs: adaptive thinking,
+`max_tokens: 1024`, opus 4.8 default. A live run with rj's real key got
+past auth and request validation to the API's billing check (no credits on
+the account — Max plan doesn't include API access, and a Console tax-address
+bug blocked buying credits). So the request path is validated end-to-end
+except for parsing a successful live response, which the stub tests cover.
 
 ## 2026-07-08 — working-tree line numbers (`feat/worktree-drift`)
 
