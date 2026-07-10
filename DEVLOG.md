@@ -3,6 +3,34 @@
 Working notes. Newest first. Reasoning, verification, and mistakes — the stuff
 that doesn't belong in a commit message but is worth not re-deriving.
 
+## 2026-07-10 — intent synthesis (`feat/why-synthesis`)
+
+`--why` sends the lineage to Claude and prints a 2–4 sentence reading of why
+the line evolved, after the reel. `src/why.ts` holds a pure `buildWhyPrompt`
+(events re-ordered oldest-first — chronology reads better to a model than the
+display order) and `synthesizeWhy`, which POSTs to `/v1/messages` with plain
+`fetch`. No SDK: the package's core promise is zero runtime dependencies, and
+Node ≥ 20 ships `fetch`, so the SDK would buy little for one non-streaming
+call. Costs of that choice, accepted: no typed errors, no automatic retries.
+
+Decisions worth remembering:
+
+- The system prompt orders the model to say when the record is too thin
+  rather than invent a story — same failure class the parse and drift work
+  guarded against, now at the model layer.
+- The reel prints *before* the synthesis round trip and survives its failure
+  (stderr + exit 1). A good trace should never be hostage to a network call.
+- Auth: `ANTHROPIC_API_KEY` → `x-api-key`; `ANTHROPIC_AUTH_TOKEN` → `Bearer`
+  plus the `anthropic-beta: oauth-2025-04-20` header (OAuth tokens use a
+  different header, not a different value in the same header).
+- `ANTHROPIC_BASE_URL` is honored — which is also how the whole path got
+  verified without a key: a local stub server, then the real CLI against it.
+  Checked: headers, model override, prompt shape, wrapped rendering,
+  `--json` gaining a `why` field, no-key error, refusal → error not output.
+
+No live-API run yet (no key in this environment). The request shape follows
+current docs: adaptive thinking, `max_tokens: 1024`, opus 4.8 default.
+
 ## 2026-07-08 — working-tree line numbers (`feat/worktree-drift`)
 
 `git log -L42,42:file` numbers lines as of HEAD; an editor numbers them as of the

@@ -87,3 +87,27 @@ export function narrate(lineage: Lineage, now = new Date()): string {
 
     return out.join('\n').trimEnd();
 }
+
+/** Wrap `text` at `width` columns, breaking on spaces. */
+function wrap(text: string, width: number): string[] {
+    const lines: string[] = [];
+    for (const paragraph of text.split('\n')) {
+        let line = '';
+        for (const word of paragraph.split(/\s+/).filter(Boolean)) {
+            if (line && line.length + 1 + word.length > width) {
+                lines.push(line);
+                line = word;
+            } else {
+                line = line ? `${line} ${word}` : word;
+            }
+        }
+        lines.push(line);
+    }
+    return lines;
+}
+
+/** Render the intent synthesis as a section that follows the reel. */
+export function narrateWhy(text: string): string {
+    const body = wrap(text, 72).map((l) => `  ${l}`);
+    return [bold('why'), ...body].join('\n');
+}

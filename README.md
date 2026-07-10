@@ -36,7 +36,9 @@ never in the file you're reading. `linelore` is a small step toward recovering
 that: point it at a line and it reconstructs the line's story from the one place
 the "why" is actually written down.
 
-It works fully offline today. Everything below is built on `git log -L`.
+Tracing works fully offline — it is all built on `git log -L`. The one
+opt-in exception is [`--why`](#intent-synthesis---why), which brings its
+own model.
 
 ## Install
 
@@ -52,6 +54,7 @@ linelore <file> <line>            # same, space-separated
 linelore <file> <start> <end>     # trace a line range
 linelore <file>:<line> --json     # structured output for tooling
 linelore <file>:<line> --at-head  # line numbers are HEAD's, not the working tree's
+linelore <file>:<line> --why      # ask Claude why the line evolved this way
 ```
 
 ### Uncommitted changes
@@ -73,13 +76,36 @@ the text it replaced — usually exactly the "why" you were reaching for. A line
 you have only just typed has no history, and it says so instead of guessing.
 Pass `--at-head` to opt out and number lines as of the last commit.
 
+### Intent synthesis (`--why`)
+
+The reel shows *what* changed; `--why` asks Claude to read the arc and say
+*why*. It appends a short synthesis after the reel (or a `why` field to
+`--json` output):
+
+```
+$ linelore src/auth.ts:42 --why
+...the reel...
+
+why
+  The check was born strict and loosened deliberately: clock-skew failures
+  pushed an exact comparison toward a tolerance window, and the constant
+  extraction that followed was housekeeping around that same decision.
+```
+
+It is opt-in and bring-your-own-key: set `ANTHROPIC_API_KEY` (or
+`ANTHROPIC_AUTH_TOKEN`). `--model <id>` overrides the default
+(`claude-opus-4-8`), and `ANTHROPIC_BASE_URL` is honored for proxies. The
+prompt instructs the model to say when the record is too thin to support a
+conclusion rather than invent one. Everything else works offline; this is
+the only feature that talks to a network, and only when you ask.
+
 ## Roadmap
 
 - [x] Trace a line range through history via `git log -L` (offline, zero-dep)
 - [x] Structured `--json` output
-- [ ] **Intent synthesis** — an optional layer that reads the arc of changes and
+- [x] **Intent synthesis** — an optional layer that reads the arc of changes and
       summarizes *why* the line evolved the way it did (opt-in, brings its own
-      model). The engine already exposes a clean `Lineage` object for this.
+      model): `--why`
 - [x] Follow a line whose number has drifted in the working tree
 - [ ] Pull in the merging PR's discussion for each commit
 - [ ] A web view: paste a permalink, get the reel
