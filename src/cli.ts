@@ -5,6 +5,7 @@ import { Git } from './git.js';
 import { narrate, narratePulls, narrateWhy } from './narrate.js';
 import { withPullDiscussions } from './pr.js';
 import { synthesizeWhy, WHY_PROVIDERS, type WhyProvider } from './why.js';
+import { serve, DEFAULT_PORT } from './serve.js';
 
 const USAGE = `linelore — the lore of a line of code
 
@@ -12,6 +13,8 @@ Usage:
   linelore <file>:<line>            trace a single line
   linelore <file> <line>            trace a single line
   linelore <file> <start> <end>     trace a line range
+  linelore serve [--port <n>]       web view for this repo: paste a GitHub
+                                    permalink, get the reel (port ${DEFAULT_PORT})
 
 Options:
   --json         emit structured JSON instead of the narrative
@@ -112,7 +115,36 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
 
 class HelpRequested extends Error {}
 
+/** `linelore serve [--port <n>]` — everything after `serve` is its own. */
+async function runServe(argv: readonly string[]): Promise<void> {
+    let port = DEFAULT_PORT;
+    for (let i = 0; i < argv.length; i++) {
+        const arg = argv[i]!;
+        let value: string | undefined;
+        if (arg === '--port') value = argv[++i];
+        else if (arg.startsWith('--port=')) value = arg.slice('--port='.length);
+        else throw new Error(`unknown option: ${arg}`);
+        if (value === undefined) throw new Error('--port needs a value');
+        port = Number(value);
+        if (!Number.isInteger(port) || port < 1 || port > 65535) {
+            throw new Error(`not a port: ${value}`);
+        }
+    }
+    await serve(process.cwd(), port);
+}
+
 async function main(): Promise<void> {
+    const argv = process.argv.slice(2);
+    if (argv[0] === 'serve') {
+        try {
+            await runServe(argv.slice(1));
+        } catch (err) {
+            process.stderr.write(`error: ${(err as Error).message}\n`);
+            process.exitCode = 1;
+        }
+        return;
+    }
+
     let parsed: ParsedArgs;
     try {
         parsed = parseArgs(process.argv.slice(2));

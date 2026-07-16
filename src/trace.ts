@@ -10,6 +10,12 @@ export interface TraceOptions {
      * working-tree drift correction.
      */
     readonly atHead?: boolean;
+    /**
+     * Trace as of this commit-ish instead of the working tree. Line numbers
+     * are `rev`'s own — a permalink pins both — so drift correction does not
+     * apply, and the file only has to exist at `rev`, not on disk.
+     */
+    readonly rev?: string;
 }
 
 /**
@@ -29,6 +35,26 @@ export async function trace(
     const git = Git.forFile(abs);
 
     await git.repoRoot(); // throws a friendly error if we're not in a repo
+
+    if (options.rev) {
+        // The rev may be pasted text (the web view); never let it reach git
+        // looking like a flag.
+        if (options.rev.startsWith('-')) {
+            throw new Error(`not a commit: ${options.rev}`);
+        }
+        if (!(await git.existsAt(options.rev, abs))) {
+            throw new Error(`file not found at ${options.rev}: ${file}`);
+        }
+        const raw = await git.logLineRange(abs, startLine, endLine, options.rev);
+        return {
+            file,
+            startLine,
+            endLine,
+            drift: undefined,
+            events: parseLog(raw),
+        };
+    }
+
     if (!(await git.isTracked(abs))) {
         throw new Error(`file is not tracked by git: ${file}`);
     }
