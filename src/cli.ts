@@ -1,6 +1,9 @@
 #!/usr/bin/env node
+import { resolve } from 'node:path';
 import { trace } from './trace.js';
-import { narrate, narrateWhy } from './narrate.js';
+import { Git } from './git.js';
+import { narrate, narratePulls, narrateWhy } from './narrate.js';
+import { withPullDiscussions } from './pr.js';
 import { synthesizeWhy, WHY_PROVIDERS, type WhyProvider } from './why.js';
 
 const USAGE = `linelore — the lore of a line of code
@@ -13,6 +16,8 @@ Usage:
 Options:
   --json         emit structured JSON instead of the narrative
   --at-head      line numbers are HEAD's, not the working tree's
+  --prs              pull in each commit's merging PR discussion (GitHub
+                     remotes; GITHUB_TOKEN optional for private repos)
   --why              ask a model why the line evolved this way
   --provider <name>  API for --why: anthropic (default, needs
                      ANTHROPIC_API_KEY), mistral or vibe (needs
@@ -24,8 +29,9 @@ Options:
 Examples:
   linelore src/auth.ts:42
   linelore src/auth.ts 40 55 --json
+  linelore src/auth.ts:42 --prs
   linelore src/auth.ts:42 --why
-  linelore src/auth.ts:42 --why --provider mistral
+  linelore src/auth.ts:42 --prs --why --provider mistral
 `;
 
 interface ParsedArgs {
@@ -34,6 +40,7 @@ interface ParsedArgs {
     end: number;
     json: boolean;
     atHead: boolean;
+    prs: boolean;
     why: boolean;
     provider: WhyProvider | undefined;
     model: string | undefined;
@@ -56,6 +63,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
     const positional: string[] = [];
     let json = false;
     let atHead = false;
+    let prs = false;
     let why = false;
     let provider: WhyProvider | undefined;
     let model: string | undefined;
@@ -64,6 +72,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
         const arg = argv[i]!;
         if (arg === '--json') json = true;
         else if (arg === '--at-head') atHead = true;
+        else if (arg === '--prs') prs = true;
         else if (arg === '--why') why = true;
         else if (arg === '--provider') provider = parseProvider(argv[++i]);
         else if (arg.startsWith('--provider=')) {
@@ -79,7 +88,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
         else positional.push(arg);
     }
 
-    const base = { json, atHead, why, provider, model };
+    const base = { json, atHead, prs, why, provider, model };
 
     // `file:line` shorthand.
     if (positional.length === 1) {
@@ -118,22 +127,50 @@ async function main(): Promise<void> {
     }
 
     try {
-        const lineage = await trace(parsed.file, parsed.start, parsed.end, {
+        let lineage = await trace(parsed.file, parsed.start, parsed.end, {
             atHead: parsed.atHead,
         });
 
+        // A failed PR lookup must not cost the reel: note the error and
+        // carry on with the un-enriched lineage.
+        let prError: string | undefined;
+        if (parsed.prs) {
+            try {
+                const remote = await Git.forFile(
+                    resolve(parsed.file),
+                ).remoteUrl();
+                lineage = await withPullDiscussions(lineage, remote);
+            } catch (err) {
+                prError = (err as Error).message;
+            }
+        }
+        const reportPrError = (): void => {
+            if (!prError) return;
+            process.stderr.write(`error: ${prError}\n`);
+            process.exitCode = 1;
+        };
+
         if (!parsed.why) {
-            process.stdout.write(
-                parsed.json
-                    ? JSON.stringify(lineage, null, 2) + '\n'
-                    : narrate(lineage) + '\n',
-            );
+            if (parsed.json) {
+                process.stdout.write(JSON.stringify(lineage, null, 2) + '\n');
+            } else {
+                process.stdout.write(narrate(lineage) + '\n');
+                if (lineage.pulls) {
+                    process.stdout.write('\n' + narratePulls(lineage) + '\n');
+                }
+            }
+            reportPrError();
             return;
         }
 
         // The reel is already in hand — show it before the synthesis round
         // trip, and keep it even if that round trip fails.
-        if (!parsed.json) process.stdout.write(narrate(lineage) + '\n\n');
+        if (!parsed.json) {
+            process.stdout.write(narrate(lineage) + '\n\n');
+            if (lineage.pulls) {
+                process.stdout.write(narratePulls(lineage) + '\n\n');
+            }
+        }
         try {
             const why = await synthesizeWhy(lineage, {
                 provider: parsed.provider,
@@ -151,6 +188,7 @@ async function main(): Promise<void> {
             process.stderr.write(`error: ${(err as Error).message}\n`);
             process.exitCode = 1;
         }
+        reportPrError();
     } catch (err) {
         process.stderr.write(`error: ${(err as Error).message}\n`);
         process.exitCode = 1;
