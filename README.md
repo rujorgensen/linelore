@@ -27,6 +27,14 @@ the lore of src/auth.ts:42
       + if (exp < now) return false;
 ```
 
+The same reel lives in [a web view](#web-view-linelore-serve) — run
+`linelore serve`, paste a GitHub permalink:
+
+<img src="https://raw.githubusercontent.com/rujorgensen/linelore/main/docs/web-view.png"
+     alt="the linelore web view: a pasted GitHub permalink traced to a three-commit reel"
+     width="720">
+
+
 ## Why
 
 Source code records *what* is true now and discards *why* it got that way. The
