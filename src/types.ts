@@ -23,6 +23,31 @@ export interface LineEvent {
      * or deleted in this commit.
      */
     readonly kind: 'born' | 'edited' | 'deleted';
+    /**
+     * Number of the pull request that merged this commit, when `--prs` found
+     * one. The discussion itself lives in {@link Lineage.pulls}.
+     */
+    readonly pr?: number;
+}
+
+/** One comment in a pull-request discussion. */
+export interface PullComment {
+    readonly author: string;
+    /** Creation date, ISO-8601. */
+    readonly date: string;
+    readonly body: string;
+}
+
+/** A merged pull request and its discussion, fetched with `--prs`. */
+export interface PullDiscussion {
+    readonly number: number;
+    readonly title: string;
+    readonly author: string;
+    readonly url: string;
+    /** The PR description; '' when the author left it empty. */
+    readonly body: string;
+    /** Issue and review comments interleaved, oldest first. Bots excluded. */
+    readonly comments: readonly PullComment[];
 }
 
 /**
@@ -47,4 +72,9 @@ export interface Lineage {
     readonly drift?: Drift;
     /** Newest → oldest. The last entry is the line's birth. */
     readonly events: readonly LineEvent[];
+    /**
+     * Discussions of the pull requests that merged these events, one entry per
+     * PR, ascending by number. Present only when `--prs` ran.
+     */
+    readonly pulls?: readonly PullDiscussion[];
 }

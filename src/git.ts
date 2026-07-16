@@ -83,6 +83,18 @@ export class Git {
     }
 
     /**
+     * URL of the `origin` remote, or '' when there is none — the caller turns
+     * that into a friendlier error than git's own.
+     */
+    async remoteUrl(): Promise<string> {
+        try {
+            return (await this.git(['remote', 'get-url', 'origin'])).trim();
+        } catch {
+            return '';
+        }
+    }
+
+    /**
      * Raw `git log -L` output for a line range, with a NUL/RS-delimited header
      * per commit so the patch stream can be parsed unambiguously.
      */

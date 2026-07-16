@@ -71,6 +71,34 @@ test('prompt presents events oldest first with their diffs', () => {
     assert.match(prompt, /src\/auth\.ts, line 42/);
 });
 
+test('PR discussions join the prompt when the lineage has them', () => {
+    const prompt = buildWhyPrompt({
+        ...LINEAGE,
+        events: [event({ subject: 'harden token check', pr: 7 })],
+        pulls: [
+            {
+                number: 7,
+                title: 'Harden auth against clock skew',
+                author: 'ada',
+                url: 'https://github.com/o/r/pull/7',
+                body: 'We saw 30s skew in prod.',
+                comments: [
+                    {
+                        author: 'bob',
+                        date: '2026-01-30T00:00:00Z',
+                        body: 'should the tolerance be configurable?',
+                    },
+                ],
+            },
+        ],
+    });
+
+    assert.match(prompt, /harden token check \(aaaaaaaaa, edited, merged by PR #7\)/);
+    assert.match(prompt, /## Discussion of PR #7: Harden auth against clock skew \(by ada\)/);
+    assert.match(prompt, /We saw 30s skew in prod\./);
+    assert.match(prompt, /bob: should the tolerance be configurable\?/);
+});
+
 test('sends the request with API-key auth and the default model', async () => {
     const { fetchFn, calls } = fakeFetch(OK_RESPONSE);
     const text = await synthesizeWhy(LINEAGE, {

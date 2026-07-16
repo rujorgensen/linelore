@@ -1,5 +1,5 @@
 export { trace, type TraceOptions } from './trace.js';
-export { narrate, narrateWhy } from './narrate.js';
+export { narrate, narratePulls, narrateWhy } from './narrate.js';
 export {
     synthesizeWhy,
     buildWhyPrompt,
@@ -7,6 +7,18 @@ export {
     type WhyOptions,
     type WhyProvider,
 } from './why.js';
+export {
+    withPullDiscussions,
+    parseGitHubRemote,
+    type PrOptions,
+    type GitHubRepo,
+} from './pr.js';
 export { parseLog } from './parse.js';
 export { parseHunks, mapToHead, type Hunk, type Mapped } from './drift.js';
-export type { Lineage, LineEvent, Drift } from './types.js';
+export type {
+    Lineage,
+    LineEvent,
+    Drift,
+    PullDiscussion,
+    PullComment,
+} from './types.js';

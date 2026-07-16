@@ -13,9 +13,9 @@ import type { Lineage } from './types.js';
 
 const ANTHROPIC_VERSION = '2023-06-01';
 
-const SYSTEM_PROMPT = `You are a code historian. You will be given the complete git history of one line range — every commit that touched it, oldest first, with commit subjects and the exact before/after text.
+const SYSTEM_PROMPT = `You are a code historian. You will be given the complete git history of one line range — every commit that touched it, oldest first, with commit subjects and the exact before/after text, and sometimes the pull-request discussions that merged them.
 
-In two to four sentences, explain why the line evolved the way it did: the motivations and pressures behind the changes, as far as the commit messages and diffs actually support them. Do not restate the diffs. Where the record is too thin to support a conclusion, say so plainly rather than inventing one — a wrong story told well is worse than no story.`;
+In two to four sentences, explain why the line evolved the way it did: the motivations and pressures behind the changes, as far as the commit messages, diffs, and discussions actually support them. Do not restate the diffs. Where the record is too thin to support a conclusion, say so plainly rather than inventing one — a wrong story told well is worse than no story.`;
 
 export type WhyProvider = 'anthropic' | 'mistral' | 'openai';
 
@@ -55,9 +55,17 @@ export function buildWhyPrompt(lineage: Lineage): string {
 
     for (const e of [...lineage.events].reverse()) {
         out.push('');
-        out.push(`## ${e.date} — ${e.subject} (${e.shortSha}, ${e.kind})`);
+        const via = e.pr === undefined ? '' : `, merged by PR #${e.pr}`;
+        out.push(`## ${e.date} — ${e.subject} (${e.shortSha}, ${e.kind}${via})`);
         for (const line of e.removed) out.push(`- ${line}`);
         for (const line of e.added) out.push(`+ ${line}`);
+    }
+
+    for (const p of lineage.pulls ?? []) {
+        out.push('');
+        out.push(`## Discussion of PR #${p.number}: ${p.title} (by ${p.author})`);
+        if (p.body) out.push(p.body);
+        for (const c of p.comments) out.push(`${c.author}: ${c.body}`);
     }
 
     return out.join('\n');

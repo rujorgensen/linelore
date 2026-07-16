@@ -3,6 +3,43 @@
 Working notes. Newest first. Reasoning, verification, and mistakes — the stuff
 that doesn't belong in a commit message but is worth not re-deriving.
 
+## 2026-07-16 — PR discussions (`feat/pr-discussion`)
+
+`--prs`: for each commit in the reel, find the PR that merged it and pull in
+the discussion. `src/pr.ts`, GitHub REST via plain `fetch` — zero-dep holds.
+
+Association is `GET /repos/{o}/{r}/commits/{sha}/pulls`, not commit-message
+parsing: squash merges put `(#n)` in the subject but merge commits don't, and
+the endpoint answers for both. One wrinkle: it returns every PR *containing*
+the commit, including open ones — filter on `merged_at`, or an unmerged
+side-branch PR gets credited as the merger. Several commits can share one PR
+(merge-commit style), so discussions are fetched once per PR number and the
+lineage stores them normalized: `events[].pr` is a number, `Lineage.pulls`
+holds each discussion once — keeps `--json` from duplicating a thread across
+its commits.
+
+Discussion = PR body + issue comments + review comments (two endpoints),
+interleaved by `created_at`, bots dropped (`user.type === 'Bot'` or a
+`[bot]` login). Terminal shows excerpts (280 chars, 5 comments, overflow
+counted with the PR URL); `--json` carries everything. With `--why`, the
+discussions append to the prompt — review pressure is exactly the "why"
+the model was previously missing.
+
+Failure posture matches `--why`: the reel is never hostage to the network.
+Enrichment failure prints the plain reel, error to stderr, exit 1 — and
+`--why` still runs, just without PR context. Node's fetch rejects with a
+bare "fetch failed", so network errors get wrapped as "GitHub API
+unreachable: …". GitHub also 403s requests with no User-Agent, and Node
+doesn't always send one — set explicitly.
+
+Verified three ways: unit tests with a routed fetch stub; the real CLI
+against a local API stub via `GITHUB_API_URL` (reel tags, pulls section,
+`--json` shape, unreachable-API path, and `--prs --why` prompt composition
+via the chat-completions stub); then live and anonymous against
+`sindresorhus/slugify` — traced `index.js:54` through 5 commits, two real
+PRs (#4, #11) with their review threads, two direct pushes correctly
+untagged.
+
 ## 2026-07-10 — --why providers (`feat/why-providers`)
 
 rj wanted `--why` to work with his Vibe account. "Vibe" turned out to be

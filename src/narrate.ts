@@ -78,7 +78,7 @@ export function narrate(lineage: Lineage, now = new Date()): string {
         out.push(
             `${glyph} ${yellow(e.shortSha)}  ${dim(relativeDate(e.date, now))}  ${e.author}`,
         );
-        out.push(`  ${e.subject}`);
+        out.push(`  ${e.subject}${e.pr ? dim(` · PR #${e.pr}`) : ''}`);
 
         for (const line of e.removed) out.push(red(`      - ${line.trim()}`));
         for (const line of e.added) out.push(green(`      + ${line.trim()}`));
@@ -110,4 +110,49 @@ function wrap(text: string, width: number): string[] {
 export function narrateWhy(text: string): string {
     const body = wrap(text, 72).map((l) => `  ${l}`);
     return [bold('why'), ...body].join('\n');
+}
+
+const MAX_COMMENTS = 5;
+const MAX_EXCERPT = 280;
+
+/** One readable line's worth of a comment: whitespace collapsed, capped. */
+function excerpt(body: string): string {
+    const flat = body.replace(/\s+/g, ' ').trim();
+    return flat.length > MAX_EXCERPT
+        ? flat.slice(0, MAX_EXCERPT - 1).trimEnd() + '…'
+        : flat;
+}
+
+/**
+ * Render the PR discussions as a section that follows the reel. The terminal
+ * gets excerpts; the full text is in `--json`.
+ */
+export function narratePulls(lineage: Lineage): string {
+    const pulls = lineage.pulls ?? [];
+    const out: string[] = [bold('pull requests')];
+
+    if (pulls.length === 0) {
+        out.push(dim('  no merged pull request found for these commits'));
+        return out.join('\n');
+    }
+
+    for (const p of pulls) {
+        out.push(
+            `${cyan(`#${p.number}`)} ${p.title}  ${dim(`— ${p.author}`)}`,
+        );
+        if (p.body) {
+            for (const l of wrap(excerpt(p.body), 68)) out.push(dim(`    ${l}`));
+        }
+        for (const comment of p.comments.slice(0, MAX_COMMENTS)) {
+            const lines = wrap(`${comment.author}: ${excerpt(comment.body)}`, 68);
+            out.push(...lines.map((l, i) => (i === 0 ? `    ${l}` : `      ${l}`)));
+        }
+        const hidden = p.comments.length - MAX_COMMENTS;
+        if (hidden > 0) {
+            out.push(dim(`    … ${hidden} more comment${hidden === 1 ? '' : 's'} · ${p.url}`));
+        }
+        out.push('');
+    }
+
+    return out.join('\n').trimEnd();
 }

@@ -54,6 +54,7 @@ linelore <file> <line>            # same, space-separated
 linelore <file> <start> <end>     # trace a line range
 linelore <file>:<line> --json     # structured output for tooling
 linelore <file>:<line> --at-head  # line numbers are HEAD's, not the working tree's
+linelore <file>:<line> --prs      # pull in each commit's merging PR discussion
 linelore <file>:<line> --why      # ask Claude why the line evolved this way
 ```
 
@@ -75,6 +76,32 @@ If the line is one you are editing right now, `linelore` traces the history of
 the text it replaced — usually exactly the "why" you were reaching for. A line
 you have only just typed has no history, and it says so instead of guessing.
 Pass `--at-head` to opt out and number lines as of the last commit.
+
+### Pull-request discussion (`--prs`)
+
+Commit messages carry the *what*; the argument usually happened on the PR.
+`--prs` finds the pull request that merged each commit in the reel and pulls
+its discussion in — the description, and the review thread with bots filtered
+out:
+
+```
+$ linelore src/auth.ts:42 --prs
+
+...the reel, each commit tagged `· PR #7`...
+
+pull requests
+#7 Harden auth against clock skew  — ada
+    We saw 30s skew in prod; loosen the check.
+    bob: should the tolerance be configurable?
+    … 3 more comments · https://github.com/you/repo/pull/7
+```
+
+The terminal shows excerpts; `--json` carries the full text under a `pulls`
+key. Commits that were pushed directly stay untagged. Works on GitHub remotes;
+public repos need no credentials (set `GITHUB_TOKEN` for private repos or more
+rate-limit headroom, and `GITHUB_API_URL` for GitHub Enterprise-style hosts
+that serve the same API). A failed lookup never costs you the reel — it still
+prints, with the error on stderr.
 
 ### Intent synthesis (`--why`)
 
@@ -102,8 +129,10 @@ It is opt-in and bring-your-own-key. Three providers are supported:
 
 `--model <id>` overrides the default. The prompt instructs the model to say
 when the record is too thin to support a conclusion rather than invent one.
-Everything else works offline; this is the only feature that talks to a
-network, and only when you ask.
+Combine with `--prs` and the PR discussions join the evidence the model reads.
+
+Everything outside `--prs` and `--why` works offline; nothing talks to a
+network unless you ask.
 
 ## Roadmap
 
@@ -113,7 +142,7 @@ network, and only when you ask.
       summarizes *why* the line evolved the way it did (opt-in, brings its own
       model): `--why`
 - [x] Follow a line whose number has drifted in the working tree
-- [ ] Pull in the merging PR's discussion for each commit
+- [x] Pull in the merging PR's discussion for each commit: `--prs`
 - [ ] A web view: paste a permalink, get the reel
 
 ## Development
