@@ -3,6 +3,44 @@
 Working notes. Newest first. Reasoning, verification, and mistakes — the stuff
 that doesn't belong in a commit message but is worth not re-deriving.
 
+## 2026-07-16 — web view (`feat/web-view`)
+
+`linelore serve`: zero-dep localhost server (node:http, one inline page),
+paste a GitHub permalink or `file:line`, get the reel. Port 5673 — LORE on
+a phone keypad.
+
+The interesting problem is the permalink itself. `/blob/<ref>/<path>` is
+ambiguous from the text alone — branch names may contain slashes, so
+`blob/release/2.x/src/f.ts` has three possible ref/path splits. Unresolvable
+without git, so `parseTarget` (pure, tested) returns every split
+shortest-ref-first and `loreFor` tries each until a trace succeeds. UI-minted
+permalinks pin a 40-hex sha, so the first candidate nearly always wins;
+verified the fallthrough live against the repo's own `feat/pr-discussion`
+branch.
+
+Ref semantics matter: a permalink's line numbers are as of its pinned sha,
+so `trace` grew a `rev` option — trace *at that commit*, skip drift
+correction entirely (the permalink pins both numbering and content), check
+existence with `cat-file -e rev:./path` instead of ls-files (the file needn't
+exist in the working tree at all). `file:line` input still goes through the
+normal working-tree path, drift and all.
+
+Pasted text reaches git argv, so two guards: a rev starting with `-` is
+rejected before it can be read as a flag (`git log --output=…` would happily
+write files), and a candidate path is resolved and required to stay under
+the repo root. Verified both live, plus the wrong-repo case: a permalink for
+another repo is refused by comparing against the origin remote, not traced
+against whatever happens to sit at the same path here.
+
+Rendering is client-side from a JSON endpoint (`/api/lore?target=`), DOM
+built with textContent only — commit subjects and code lines are untrusted.
+Same glyphs and palette as the terminal. Server binds 127.0.0.1 only.
+
+Verified: 58 unit tests; curl against every API path (sha permalink, slashed
+branch, file:line, mismatch, escape, flag injection — `/tmp/pwned` stayed
+absent); then the real page in Chrome — auto-run from a `?t=` share link,
+form submit, multi-commit reel with wrapped diff lines, console clean.
+
 ## 2026-07-16 — PR discussions (`feat/pr-discussion`)
 
 `--prs`: for each commit in the reel, find the PR that merged it and pull in

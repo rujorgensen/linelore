@@ -94,14 +94,27 @@ export class Git {
         }
     }
 
+    /** True if `file` (in this Git's cwd) exists in the tree at `rev`. */
+    async existsAt(rev: string, file: string): Promise<boolean> {
+        // `rev:./path` resolves the path against cwd, like other pathspecs.
+        try {
+            await this.git(['cat-file', '-e', `${rev}:./${basename(file)}`]);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
     /**
      * Raw `git log -L` output for a line range, with a NUL/RS-delimited header
-     * per commit so the patch stream can be parsed unambiguously.
+     * per commit so the patch stream can be parsed unambiguously. History is
+     * walked from `rev` when given, HEAD otherwise.
      */
     async logLineRange(
         file: string,
         start: number,
         end: number,
+        rev?: string,
     ): Promise<string> {
         const rel = basename(file);
         // \x1e (RS) marks a commit boundary; \x1f (US) separates header fields.
@@ -111,6 +124,7 @@ export class Git {
             '--no-color',
             `--format=${format}`,
             `-L${start},${end}:${rel}`,
+            ...(rev ? [rev] : []),
         ]);
     }
 }

@@ -56,6 +56,7 @@ linelore <file>:<line> --json     # structured output for tooling
 linelore <file>:<line> --at-head  # line numbers are HEAD's, not the working tree's
 linelore <file>:<line> --prs      # pull in each commit's merging PR discussion
 linelore <file>:<line> --why      # ask Claude why the line evolved this way
+linelore serve                    # web view: paste a permalink, get the reel
 ```
 
 ### Uncommitted changes
@@ -134,6 +135,22 @@ Combine with `--prs` and the PR discussions join the evidence the model reads.
 Everything outside `--prs` and `--why` works offline; nothing talks to a
 network unless you ask.
 
+### Web view (`linelore serve`)
+
+Run `linelore serve` inside a clone and it hosts the reel on localhost
+(port 5673 — LORE on a phone keypad; `--port` overrides). Paste a GitHub
+permalink — the kind the `y` key mints, `…/blob/<sha>/<path>#L42` or
+`#L40-L55` — or a plain `file:line`, and the page renders the same reel as
+the terminal, dark and monospaced.
+
+Permalinks are traced *at their pinned ref*, so the line numbers mean what
+GitHub showed, even if your checkout has moved on. Branch permalinks work
+too, including branch names with slashes. Tracing is done by your local
+clone; nothing leaves your machine, and permalinks for a different repo than
+the served one are refused rather than guessed at. The URL updates as you
+trace (`?t=…`), so a reel can be shared with anyone else running
+`linelore serve` in the same repo.
+
 ## Roadmap
 
 - [x] Trace a line range through history via `git log -L` (offline, zero-dep)
@@ -143,7 +160,7 @@ network unless you ask.
       model): `--why`
 - [x] Follow a line whose number has drifted in the working tree
 - [x] Pull in the merging PR's discussion for each commit: `--prs`
-- [ ] A web view: paste a permalink, get the reel
+- [x] A web view: paste a permalink, get the reel: `linelore serve`
 
 ## Development
 
