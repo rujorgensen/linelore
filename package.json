@@ -1,6 +1,6 @@
 {
     "name": "linelore",
-    "version": "0.6.0",
+    "version": "0.7.0",
     "description": "The lore of a line of code — trace a single line's full history through edits and renames.",
     "type": "module",
     "bin": {
