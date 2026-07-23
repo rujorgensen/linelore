@@ -39,13 +39,14 @@ export function narrate(lineage: Lineage, now = new Date()): string {
     const { file, startLine, endLine, drift, events } = lineage;
     const out: string[] = [];
 
-    // Name the line the *user* named; the HEAD range is an implementation
-    // detail they only need when the two disagree.
+    // Name the target the *user* named — a function name, or the line range;
+    // the HEAD range is an implementation detail they only need when the two
+    // disagree.
     const asked = drift
         ? fmtRange(drift.requestedStart, drift.requestedEnd)
         : fmtRange(startLine, endLine);
     out.push(
-        bold(`the lore of ${cyan(file)}:${cyan(asked)}`),
+        bold(`the lore of ${cyan(file)}:${cyan(lineage.func ?? asked)}`),
     );
 
     if (drift) {
@@ -65,7 +66,8 @@ export function narrate(lineage: Lineage, now = new Date()): string {
     }
 
     const span = `${relativeDate(events.at(-1)!.date, now)} → ${relativeDate(events[0]!.date, now)}`;
-    out.push(dim(`  ${events.length} change${events.length === 1 ? '' : 's'} · ${span}`));
+    const lines = lineage.func ? `lines ${asked} · ` : '';
+    out.push(dim(`  ${lines}${events.length} change${events.length === 1 ? '' : 's'} · ${span}`));
     out.push('');
 
     for (const e of events) {

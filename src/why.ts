@@ -49,8 +49,9 @@ export function buildWhyPrompt(lineage: Lineage): string {
         lineage.startLine === lineage.endLine
             ? `line ${lineage.startLine}`
             : `lines ${lineage.startLine}-${lineage.endLine}`;
+    const target = lineage.func ? `${lineage.func} (${range})` : range;
     const out: string[] = [
-        `History of ${lineage.file}, ${range} (oldest change first):`,
+        `History of ${lineage.file}, ${target} (oldest change first):`,
     ];
 
     for (const e of [...lineage.events].reverse()) {

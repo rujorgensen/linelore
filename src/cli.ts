@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { resolve } from 'node:path';
-import { trace } from './trace.js';
+import { trace, traceFunc } from './trace.js';
+import { isFuncName } from './func.js';
 import { Git } from './git.js';
 import { narrate, narratePulls, narrateWhy } from './narrate.js';
 import { withPullDiscussions } from './pr.js';
@@ -13,6 +14,8 @@ Usage:
   linelore <file>:<line>            trace a single line
   linelore <file> <line>            trace a single line
   linelore <file> <start> <end>     trace a line range
+  linelore <file>:<name>            trace a whole function, method, or class
+  linelore <file> <name>            same, space-separated
   linelore serve [--port <n>]       web view for this repo: paste a GitHub
                                     permalink, get the reel (port ${DEFAULT_PORT})
 
@@ -31,6 +34,7 @@ Options:
 
 Examples:
   linelore src/auth.ts:42
+  linelore src/auth.ts:verifyToken
   linelore src/auth.ts 40 55 --json
   linelore src/auth.ts:42 --prs
   linelore src/auth.ts:42 --why
@@ -41,6 +45,8 @@ interface ParsedArgs {
     file: string;
     start: number;
     end: number;
+    /** Set when the target is a named definition; start/end are then unused. */
+    func: string | undefined;
     json: boolean;
     atHead: boolean;
     prs: boolean;
@@ -93,24 +99,37 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
 
     const base = { json, atHead, prs, why, provider, model };
 
-    // `file:line` shorthand.
+    // `file:line` / `file:funcName` shorthand.
     if (positional.length === 1) {
-        const m = positional[0]!.match(/^(.*):(\d+)$/);
-        if (!m) throw new Error('expected <file>:<line> or <file> <line>');
-        const line = Number(m[2]);
-        return { file: m[1]!, start: line, end: line, ...base };
+        const m = positional[0]!.match(/^(.*):([^:]+)$/);
+        if (m && /^\d+$/.test(m[2]!)) {
+            const line = Number(m[2]);
+            return { file: m[1]!, start: line, end: line, func: undefined, ...base };
+        }
+        if (m && isFuncName(m[2]!)) {
+            return { file: m[1]!, start: 0, end: 0, func: m[2]!, ...base };
+        }
+        throw new Error(
+            'expected <file>:<line>, <file>:<function>, or <file> <line>',
+        );
     }
 
     const [file, startRaw, endRaw] = positional;
     if (!file || startRaw === undefined) {
         throw new Error('missing file or line number');
     }
+
+    // `file funcName` — a name in place of the line number.
+    if (!/^\d+$/.test(startRaw) && endRaw === undefined && isFuncName(startRaw)) {
+        return { file, start: 0, end: 0, func: startRaw, ...base };
+    }
+
     const start = Number(startRaw);
     const end = endRaw === undefined ? start : Number(endRaw);
     if (!Number.isInteger(start) || !Number.isInteger(end)) {
         throw new Error('line numbers must be integers');
     }
-    return { file, start, end, ...base };
+    return { file, start, end, func: undefined, ...base };
 }
 
 class HelpRequested extends Error {}
@@ -159,9 +178,13 @@ async function main(): Promise<void> {
     }
 
     try {
-        let lineage = await trace(parsed.file, parsed.start, parsed.end, {
-            atHead: parsed.atHead,
-        });
+        let lineage = parsed.func
+            ? await traceFunc(parsed.file, parsed.func, {
+                  atHead: parsed.atHead,
+              })
+            : await trace(parsed.file, parsed.start, parsed.end, {
+                  atHead: parsed.atHead,
+              });
 
         // A failed PR lookup must not cost the reel: note the error and
         // carry on with the un-enriched lineage.

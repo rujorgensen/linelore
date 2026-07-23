@@ -105,6 +105,11 @@ export class Git {
         }
     }
 
+    /** Full content of `file` (in this Git's cwd) as it stands at `rev`. */
+    async contentAt(rev: string, file: string): Promise<string> {
+        return this.git(['show', `${rev}:./${basename(file)}`]);
+    }
+
     /**
      * Raw `git log -L` output for a line range, with a NUL/RS-delimited header
      * per commit so the patch stream can be parsed unambiguously. History is

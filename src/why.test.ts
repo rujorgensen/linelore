@@ -71,6 +71,16 @@ test('prompt presents events oldest first with their diffs', () => {
     assert.match(prompt, /src\/auth\.ts, line 42/);
 });
 
+test('a function trace names the function in the prompt', () => {
+    const prompt = buildWhyPrompt({
+        ...LINEAGE,
+        func: 'verifyToken',
+        startLine: 40,
+        endLine: 55,
+    });
+    assert.match(prompt, /src\/auth\.ts, verifyToken \(lines 40-55\)/);
+});
+
 test('PR discussions join the prompt when the lineage has them', () => {
     const prompt = buildWhyPrompt({
         ...LINEAGE,

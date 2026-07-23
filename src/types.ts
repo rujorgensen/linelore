@@ -68,6 +68,11 @@ export interface Lineage {
     /** The HEAD line range that was traced. */
     readonly startLine: number;
     readonly endLine: number;
+    /**
+     * The definition name that was traced, when the target was named rather
+     * than numbered. `startLine`/`endLine` hold the span it resolved to.
+     */
+    readonly func?: string;
     /** Present only when the working tree shifted the requested range. */
     readonly drift?: Drift;
     /** Newest → oldest. The last entry is the line's birth. */
