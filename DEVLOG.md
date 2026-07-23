@@ -3,6 +3,56 @@
 Working notes. Newest first. Reasoning, verification, and mistakes — the stuff
 that doesn't belong in a commit message but is worth not re-deriving.
 
+## 2026-07-23 — function tracing (`feat/func-trace`)
+
+`linelore src/git.ts:logLineRange` — name a definition instead of a number
+and the whole span gets traced. The obvious implementation was
+`git log -L :funcname:file`, and it's a trap: funcname matching runs off a
+per-language diff driver, git ships none for JS/TS, and the default
+heuristic only matches column-0 lines — so every indented class method in
+this very repo is "no match". Verified before writing a line: `gitMessage`
+(top-level) matched, `logLineRange` (method) didn't.
+
+So `src/func.ts` resolves the span itself, then hands the numbers to the
+existing line-range trace. Two parts, both pure and unit-testable:
+
+- **Definition line**: three passes in falling confidence — keyworded
+  (`async foo(`, `export function foo`, `class Foo`), C-style signature
+  (type words before the name, no trailing `;` — the `;` exclusion is the
+  java driver's trick for rejecting calls and prototypes), then bare
+  (`constructor(`, `foo: (x) =>`). Whole-file pass order matters: a
+  keyworded definition anywhere must beat a bare `setup()` call that
+  happens to start line 1.
+- **End of body**: bracket balance once a `{` has opened; a signature that
+  closes braceless either has an Allman `{` on the next non-blank line
+  (keep counting) or an indentation-delimited body (Python/Ruby — walk
+  indent, include a closing `}`/`end` at base level). The case that kills
+  naive indent-walking is this repo's own house style: a multi-line
+  signature ending `): Promise<Lineage> {` at base indent.
+
+The payoff of resolve-then-trace over git-native: the name is resolved in
+the *working tree*, so function traces compose with the drift machinery for
+free — and that's also the editor-first semantics the tool already promises
+for numbers. Dogfooding confirmed it: the uncommitted `contentAt` helper
+added this session shifted `logLineRange` down five lines, and the reel
+said so ("uncommitted changes above · that's HEAD 113-129") with no new
+code. `--at-head` and the `rev` option resolve in `git show rev:./file`
+content instead.
+
+`Lineage` gains `func?: string` with `startLine`/`endLine` still required
+(the resolved span) — no breaking JSON change. Brackets in strings/comments
+are counted like any others; accepted, documented, with EOF-fallback when
+balance never returns. Not-found is an error naming the escape hatch (line
+numbers), never a guess.
+
+Verified: 80 unit tests (21 new: TS methods, multi-line sigs, classes,
+arrows, object methods, Python, Ruby `end`, C prototypes vs definitions,
+Go receivers, generics, unbalanced input); live on this repo (method,
+class, drift note, `--at-head`, `--json` `func` field, both error paths);
+scratch repo: Python function traced through an edit and a `git mv`.
+
+Left for later: `file:funcName` in the web view's paste box.
+
 ## 2026-07-16 — web view (`feat/web-view`)
 
 `linelore serve`: zero-dep localhost server (node:http, one inline page),

@@ -1,7 +1,9 @@
 import { resolve } from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { Git } from './git.js';
 import { parseLog } from './parse.js';
 import { parseHunks, mapToHead } from './drift.js';
+import { findFunction } from './func.js';
 import type { Drift, Lineage } from './types.js';
 
 export interface TraceOptions {
@@ -67,6 +69,60 @@ export async function trace(
     const events = parseLog(raw);
 
     return { file, startLine: start, endLine: end, drift, events };
+}
+
+/**
+ * Trace the full history of a named definition — a function, method, class,
+ * or constant — by resolving its line span and tracing that.
+ *
+ * The name is resolved where the line numbers would be read from: the working
+ * tree by default (what your editor shows), HEAD under `atHead`, the pinned
+ * commit under `rev`. Resolution is heuristic (see {@link findFunction}); a
+ * name that cannot be found is an error, never a guess.
+ */
+export async function traceFunc(
+    file: string,
+    name: string,
+    options: TraceOptions = {},
+): Promise<Lineage> {
+    const abs = resolve(file);
+    const git = Git.forFile(abs);
+
+    await git.repoRoot();
+
+    let source: string;
+    let where = '';
+    if (options.rev) {
+        if (options.rev.startsWith('-')) {
+            throw new Error(`not a commit: ${options.rev}`);
+        }
+        if (!(await git.existsAt(options.rev, abs))) {
+            throw new Error(`file not found at ${options.rev}: ${file}`);
+        }
+        source = await git.contentAt(options.rev, abs);
+        where = ` at ${options.rev}`;
+    } else {
+        if (!(await git.isTracked(abs))) {
+            throw new Error(`file is not tracked by git: ${file}`);
+        }
+        if (options.atHead) {
+            source = await git.contentAt('HEAD', abs);
+            where = ' at HEAD';
+        } else {
+            source = await readFile(abs, 'utf8');
+        }
+    }
+
+    const span = findFunction(source, name);
+    if (!span) {
+        throw new Error(
+            `no definition of '${name}' found in ${file}${where} — the ` +
+                `search is heuristic; a line range like ${file}:40 always works`,
+        );
+    }
+
+    const lineage = await trace(file, span.start, span.end, options);
+    return { ...lineage, func: name };
 }
 
 /** Range of HEAD lines to trace, plus a note if it isn't what was asked for. */

@@ -1,4 +1,5 @@
-export { trace, type TraceOptions } from './trace.js';
+export { trace, traceFunc, type TraceOptions } from './trace.js';
+export { findFunction, isFuncName, type FuncSpan } from './func.js';
 export { narrate, narratePulls, narrateWhy } from './narrate.js';
 export {
     synthesizeWhy,

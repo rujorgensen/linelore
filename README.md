@@ -60,6 +60,7 @@ npm install -g linelore
 linelore <file>:<line>            # trace a single line
 linelore <file> <line>            # same, space-separated
 linelore <file> <start> <end>     # trace a line range
+linelore <file>:<name>            # trace a whole function, method, or class
 linelore <file>:<line> --json     # structured output for tooling
 linelore <file>:<line> --at-head  # line numbers are HEAD's, not the working tree's
 linelore <file>:<line> --prs      # pull in each commit's merging PR discussion
@@ -85,6 +86,30 @@ If the line is one you are editing right now, `linelore` traces the history of
 the text it replaced — usually exactly the "why" you were reaching for. A line
 you have only just typed has no history, and it says so instead of guessing.
 Pass `--at-head` to opt out and number lines as of the last commit.
+
+### Tracing a whole function
+
+Name a definition instead of a number and `linelore` traces its whole span —
+functions, methods, classes, constants:
+
+```
+$ linelore src/auth.ts:verifyToken
+the lore of src/auth.ts:verifyToken
+  lines 40-55 · 4 changes · 1y ago → 3d ago
+  ...
+```
+
+You might expect this to be `git log -L :funcname:`, but it isn't: git's
+funcname matching needs a per-language diff driver and git ships none for
+JavaScript or TypeScript, so an indented class method never matches there.
+Instead `linelore` finds the definition line itself and walks to the end of
+the body — bracket balance for brace languages, indentation for Python and
+friends — then traces the resolved span like any line range. The name is
+resolved in your working tree (what your editor shows), so it composes with
+the drift correction above; `--at-head` resolves at the last commit instead.
+
+It is a heuristic. A name it cannot find is an error with an escape hatch —
+plain line numbers always work — never a guess.
 
 ### Pull-request discussion (`--prs`)
 
@@ -169,6 +194,7 @@ trace (`?t=…`), so a reel can be shared with anyone else running
 - [x] Follow a line whose number has drifted in the working tree
 - [x] Pull in the merging PR's discussion for each commit: `--prs`
 - [x] A web view: paste a permalink, get the reel: `linelore serve`
+- [x] Trace a whole function, method, or class by name: `file:funcName`
 
 ## Development
 

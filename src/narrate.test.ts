@@ -42,6 +42,28 @@ const PULL: PullDiscussion = {
     ],
 };
 
+test('a function trace is titled by name, with its span on the stats line', () => {
+    const text = narrate(
+        lineage({ func: 'verifyToken', startLine: 40, endLine: 55 }),
+    );
+    assert.match(text, /the lore of src\/auth\.ts:verifyToken/);
+    assert.match(text, /lines 40-55 · 1 change/);
+});
+
+test('a drifted function trace reports the working-tree lines it resolved', () => {
+    const text = narrate(
+        lineage({
+            func: 'verifyToken',
+            startLine: 38,
+            endLine: 53,
+            drift: { requestedStart: 40, requestedEnd: 55, rewritten: false },
+        }),
+    );
+    assert.match(text, /the lore of src\/auth\.ts:verifyToken/);
+    assert.match(text, /lines 40-55/);
+    assert.match(text, /uncommitted changes above · that's HEAD 38-53/);
+});
+
 test('the reel tags PR-merged commits on the subject line', () => {
     const text = narrate(lineage({ events: [event({ pr: 7 })] }));
     assert.match(text, /a change · PR #7/);
