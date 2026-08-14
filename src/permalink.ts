@@ -1,4 +1,5 @@
 import type { GitHubRepo } from './pr.js';
+import { isFuncName } from './func.js';
 
 /**
  * Parsing for the things a person pastes into the web view: a GitHub
@@ -23,8 +24,11 @@ export interface TargetCandidate {
 export interface Target {
     /** Most-likely-first ways to split the input into ref + path. */
     readonly candidates: readonly TargetCandidate[];
+    /** Zero when `func` is set — the span is resolved at trace time. */
     readonly start: number;
     readonly end: number;
+    /** Set when the input named a definition (`file:funcName`) instead of a line. */
+    readonly func?: string;
     /** Present when the input named a repo, so the caller can check it. */
     readonly repo?: GitHubRepo;
 }
@@ -101,8 +105,14 @@ export function parseTarget(input: string): Target {
 
     const m = text.match(/^(.+?)(?::(\d+)(?:-(\d+))?|#L(\d+)(?:-L?(\d+))?)$/);
     if (!m) {
+        // `file:funcName` — same shorthand the CLI takes.
+        const f = text.match(/^(.*):([^:]+)$/);
+        if (f && isFuncName(f[2]!)) {
+            return { candidates: [{ path: f[1]! }], start: 0, end: 0, func: f[2]! };
+        }
         throw new Error(
-            'expected a GitHub permalink or file:line (e.g. src/auth.ts:42)',
+            'expected a GitHub permalink, file:line, or file:funcName ' +
+                '(e.g. src/auth.ts:42)',
         );
     }
     const start = Number(m[2] ?? m[4]);

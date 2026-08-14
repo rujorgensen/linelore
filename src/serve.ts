@@ -1,7 +1,7 @@
 import { createServer, type Server } from 'node:http';
 import { resolve, sep } from 'node:path';
 import { Git } from './git.js';
-import { trace } from './trace.js';
+import { trace, traceFunc } from './trace.js';
 import { parseGitHubRemote } from './pr.js';
 import { parseTarget } from './permalink.js';
 import type { Lineage } from './types.js';
@@ -51,9 +51,11 @@ export async function loreFor(root: string, input: string): Promise<Resolved> {
             throw new Error(`path escapes the repository: ${cand.path}`);
         }
         try {
-            const lineage = await trace(abs, target.start, target.end, {
-                rev: cand.ref,
-            });
+            const lineage = target.func
+                ? await traceFunc(abs, target.func, { rev: cand.ref })
+                : await trace(abs, target.start, target.end, {
+                      rev: cand.ref,
+                  });
             // Show the repo-relative path the permalink named, not our
             // absolute one.
             return {
@@ -63,7 +65,10 @@ export async function loreFor(root: string, input: string): Promise<Resolved> {
         } catch (err) {
             // A wrong ref/path split of a slashed branch name lands here;
             // keep the most-likely split's error in case none work out.
-            firstErr ??= err as Error;
+            // Errors name the absolute path we resolved; show the pasted one.
+            firstErr ??= new Error(
+                (err as Error).message.replaceAll(root + sep, ''),
+            );
         }
     }
     throw firstErr ?? new Error('nothing to trace');
@@ -112,7 +117,7 @@ export async function serve(cwd: string, port = DEFAULT_PORT): Promise<void> {
     });
     process.stdout.write(
         `linelore serving ${root}\n  http://localhost:${port}\n` +
-            `paste a GitHub permalink or a file:line — ctrl-c to stop\n`,
+            `paste a GitHub permalink, a file:line, or a file:funcName — ctrl-c to stop\n`,
     );
 }
 
@@ -165,7 +170,7 @@ const PAGE = `<!doctype html>
 </style>
 <main>
   <h1><em>linelore</em> — the lore of a line of code</h1>
-  <p class="tag">paste a GitHub permalink (#L42) or a file:line of this repo</p>
+  <p class="tag">paste a GitHub permalink (#L42), or a file:line / file:funcName of this repo</p>
   <form id="f">
     <input id="q" placeholder="https://github.com/you/repo/blob/1a2b3c…/src/auth.ts#L42"
            autofocus spellcheck="false">
@@ -205,7 +210,7 @@ const PAGE = `<!doctype html>
       ? lineage.startLine : lineage.startLine + '-' + lineage.endLine;
     out.append(line(
       el('head', 'the lore of '),
-      el('cyan head', lineage.file + ':' + range),
+      el('cyan head', lineage.file + ':' + (lineage.func || range)),
     ));
     if (ref) out.append(line(el('dim', '  at ' + ref)));
     if (lineage.drift) {
@@ -221,7 +226,8 @@ const PAGE = `<!doctype html>
       return;
     }
     out.append(line(el('dim',
-      '  ' + ev.length + ' change' + (ev.length === 1 ? '' : 's') +
+      '  ' + (lineage.func ? 'lines ' + range + ' \\u00b7 ' : '') +
+      ev.length + ' change' + (ev.length === 1 ? '' : 's') +
       ' \\u00b7 ' + rel(ev[ev.length - 1].date) + ' \\u2192 ' + rel(ev[0].date))));
     out.append(document.createElement('br'));
 
