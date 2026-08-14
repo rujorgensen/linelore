@@ -3,6 +3,32 @@
 Working notes. Newest first. Reasoning, verification, and mistakes — the stuff
 that doesn't belong in a commit message but is worth not re-deriving.
 
+## 2026-08-14 — web-view function tracing (`feat/web-func-trace`)
+
+The leftover from func-trace: `file:funcName` in the web view's paste box.
+Small because everything already existed — `parseTarget` grows a func branch
+(same `isFuncName` gate and `(.*):([^:]+)` split as the CLI, tried only after
+the numeric forms fail, so `:42` can never be read as a name), `Target` gains
+`func?` with `start`/`end` pinned to 0, and `loreFor` routes to `traceFunc`
+instead of `trace`. GitHub permalinks can't name a function, so the URL path
+is untouched. The page mirrors the terminal narration: header shows
+`file:funcName`, the count line gains a `lines 118-134 ·` prefix.
+
+One wart surfaced by driving it: `loreFor` traces the *absolute* path, so
+traceFunc's not-found error (which embeds the path twice, once in its
+"src/f.ts:40 always works" advice) leaked `/home/rj/…` into the page — where
+every success path shows repo-relative. Fixed for all error paths at once in
+`loreFor`'s catch: strip `root + sep` from the message. The advice string is
+now directly pasteable back into the box.
+
+Verified: 82 unit tests (2 new: parseTarget func target, non-name refusal);
+curl on the API
+(func target incl. `func` field in JSON, unknown name, `not-a-name` refusal);
+then the real page in Chrome — typed into the box, submitted, reel rendered
+with the lines-prefix, `?t=` share link auto-ran, error path repo-relative,
+console clean. First type went nowhere (autofocus lost after a prior
+navigation) — click the input, then type.
+
 ## 2026-07-23 — function tracing (`feat/func-trace`)
 
 `linelore src/git.ts:logLineRange` — name a definition instead of a number

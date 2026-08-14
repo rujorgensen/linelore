@@ -173,8 +173,8 @@ network unless you ask.
 Run `linelore serve` inside a clone and it hosts the reel on localhost
 (port 5673 — LORE on a phone keypad; `--port` overrides). Paste a GitHub
 permalink — the kind the `y` key mints, `…/blob/<sha>/<path>#L42` or
-`#L40-L55` — or a plain `file:line`, and the page renders the same reel as
-the terminal, dark and monospaced.
+`#L40-L55` — or a plain `file:line` / `file:funcName`, and the page renders
+the same reel as the terminal, dark and monospaced.
 
 Permalinks are traced *at their pinned ref*, so the line numbers mean what
 GitHub showed, even if your checkout has moved on. Branch permalinks work

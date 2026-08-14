@@ -80,6 +80,20 @@ test('file:line and file:start-end shorthands trace the working tree', () => {
     assert.equal(c.start, 7);
 });
 
+test('file:funcName shorthand yields a func target', () => {
+    const t = parseTarget('src/auth.ts:verifyToken');
+    assert.deepEqual(t.candidates, [{ path: 'src/auth.ts' }]);
+    assert.equal(t.func, 'verifyToken');
+    assert.equal(t.repo, undefined);
+
+    // A numeric tail is a line, never a name.
+    assert.equal(parseTarget('src/auth.ts:42').func, undefined);
+});
+
+test('a tail that is not a plain identifier is refused', () => {
+    assert.throws(() => parseTarget('src/auth.ts:not-a-name'), /file:funcName/);
+});
+
 test('junk is refused with a hint at the accepted forms', () => {
     assert.throws(() => parseTarget(''), /nothing to trace/);
     assert.throws(() => parseTarget('src/auth.ts'), /file:line/);
