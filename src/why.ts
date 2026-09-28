@@ -57,7 +57,11 @@ export function buildWhyPrompt(lineage: Lineage): string {
     for (const e of [...lineage.events].reverse()) {
         out.push('');
         const via = e.pr === undefined ? '' : `, merged by PR #${e.pr}`;
-        out.push(`## ${e.date} — ${e.subject} (${e.shortSha}, ${e.kind}${via})`);
+        const from = e.movedFrom
+            ? ` from ${e.movedFrom.file}:${e.movedFrom.startLine}`
+            : '';
+        out.push(`## ${e.date} — ${e.subject} (${e.shortSha}, ${e.kind}${from}${via})`);
+        if (e.movedFrom) continue; // same text as the history before it
         for (const line of e.removed) out.push(`- ${line}`);
         for (const line of e.added) out.push(`+ ${line}`);
     }

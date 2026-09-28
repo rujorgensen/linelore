@@ -4,7 +4,7 @@
 
 `git blame` tells you who last touched a line. It shows you a single frame.
 `linelore` shows you the whole reel — every commit that shaped one line, back to
-its birth, following it across edits and file renames.
+its birth, following it across edits, file renames, and moves between files.
 
 ```
 $ linelore src/auth.ts:42
@@ -111,6 +111,29 @@ the drift correction above; `--at-head` resolves at the last commit instead.
 It is a heuristic. A name it cannot find is an error with an escape hatch —
 plain line numbers always work — never a guess.
 
+### Moved code
+
+`git log -L` follows edits and whole-file renames, but a block cut from one
+file and pasted into another — or moved within a file — looks to it like
+brand-new code, so the reel would end at "extract helpers". `linelore` keeps
+going: when the oldest change is a birth, it asks `git blame -M -C` (bounded to
+that one commit, so it stays cheap) where those lines were in the parent. If
+the whole range came from one contiguous block, the birth becomes a move and
+the trace continues there:
+
+```
+↪ ab0e6f2ea  3d ago  Ada Lovelace
+  extract token helpers
+      moved from src/auth.ts:41-43
+
+● 3bfd125d9  4mo ago  Ada Lovelace
+  ...
+```
+
+A block edited on its way over, or assembled from several places, stays a
+birth — a partial match is never followed. In `--json` the event has
+`"kind": "moved"` and a `movedFrom` with the old path and line range.
+
 ### Pull-request discussion (`--prs`)
 
 Commit messages carry the *what*; the argument usually happened on the PR.
@@ -195,6 +218,7 @@ trace (`?t=…`), so a reel can be shared with anyone else running
 - [x] Pull in the merging PR's discussion for each commit: `--prs`
 - [x] A web view: paste a permalink, get the reel: `linelore serve`
 - [x] Trace a whole function, method, or class by name: `file:funcName`
+- [x] Follow code moved between files (or within one)
 
 ## Development
 

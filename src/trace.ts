@@ -1,10 +1,10 @@
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { Git } from './git.js';
-import { parseLog } from './parse.js';
+import { birthSite, parseBlame, parseLog } from './parse.js';
 import { parseHunks, mapToHead } from './drift.js';
 import { findFunction } from './func.js';
-import type { Drift, Lineage } from './types.js';
+import type { Drift, Lineage, LineEvent } from './types.js';
 
 export interface TraceOptions {
     /**
@@ -36,7 +36,7 @@ export async function trace(
     const abs = resolve(file);
     const git = Git.forFile(abs);
 
-    await git.repoRoot(); // throws a friendly error if we're not in a repo
+    const root = await git.repoRoot(); // throws a friendly error if not a repo
 
     if (options.rev) {
         // The rev may be pasted text (the web view); never let it reach git
@@ -53,7 +53,7 @@ export async function trace(
             startLine,
             endLine,
             drift: undefined,
-            events: parseLog(raw),
+            events: await followMoves(root, raw),
         };
     }
 
@@ -66,7 +66,7 @@ export async function trace(
         : await correctForDrift(git, abs, startLine, endLine);
 
     const raw = await git.logLineRange(abs, start, end);
-    const events = parseLog(raw);
+    const events = await followMoves(root, raw);
 
     return { file, startLine: start, endLine: end, drift, events };
 }
@@ -123,6 +123,65 @@ export async function traceFunc(
 
     const lineage = await trace(file, span.start, span.end, options);
     return { ...lineage, func: name };
+}
+
+/** A chain of moves longer than this is almost certainly a cycle. */
+const MAX_MOVES = 20;
+
+/**
+ * Parse a `git log -L` stream, then keep going where it stops short.
+ *
+ * `git log -L` follows edits and whole-file renames, but a block moved to
+ * another file — or elsewhere in the same one — looks to it like brand-new
+ * code: the reel ends at "extract helpers". So when the oldest event is a
+ * birth, ask blame (bounded to that one commit, with move/copy detection)
+ * where its lines were in the parent. If every line came from one place, as
+ * one contiguous block, that birth was a move: relabel it and trace the block
+ * from there. Anything partial or scattered stays a birth — never a guess.
+ */
+async function followMoves(root: string, raw: string): Promise<LineEvent[]> {
+    const git = new Git(root);
+    let events = parseLog(raw);
+
+    for (let hop = 0; hop < MAX_MOVES; hop++) {
+        const birth = events.at(-1);
+        const site = birthSite(raw);
+        if (birth?.kind !== 'born' || !site) break;
+
+        let sources;
+        try {
+            sources = parseBlame(await git.blameCommit(birth.sha, join(root, site.path)));
+        } catch {
+            break; // a root commit has no parent to have moved from
+        }
+        const mine = sources.slice(site.start - 1, site.start - 1 + site.count);
+        const [first] = mine;
+        const contiguous = mine.every(
+            (s, i) =>
+                s.sha !== birth.sha &&
+                s.sha === first!.sha &&
+                s.file === first!.file &&
+                s.line === first!.line + i,
+        );
+        if (!first || mine.length !== site.count || !contiguous) break;
+
+        const movedFrom = {
+            file: first.file,
+            startLine: first.line,
+            endLine: first.line + site.count - 1,
+        };
+        raw = await git.logLineRange(
+            join(root, movedFrom.file),
+            movedFrom.startLine,
+            movedFrom.endLine,
+            first.sha,
+        );
+        const older = parseLog(raw);
+        if (older.length === 0) break;
+        events = [...events.slice(0, -1), { ...birth, kind: 'moved', movedFrom }, ...older];
+    }
+
+    return events;
 }
 
 /** Range of HEAD lines to trace, plus a note if it isn't what was asked for. */

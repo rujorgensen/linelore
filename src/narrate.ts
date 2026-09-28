@@ -26,6 +26,7 @@ const KIND_GLYPH: Record<LineEvent['kind'], string> = {
     born: '✱',
     edited: '●',
     deleted: '✕',
+    moved: '↪',
 };
 
 /**
@@ -75,15 +76,22 @@ export function narrate(lineage: Lineage, now = new Date()): string {
             ? green(KIND_GLYPH.born)
             : e.kind === 'deleted'
                 ? red(KIND_GLYPH.deleted)
-                : yellow(KIND_GLYPH.edited);
+                : e.kind === 'moved'
+                    ? cyan(KIND_GLYPH.moved)
+                    : yellow(KIND_GLYPH.edited);
 
         out.push(
             `${glyph} ${yellow(e.shortSha)}  ${dim(relativeDate(e.date, now))}  ${e.author}`,
         );
         out.push(`  ${e.subject}${e.pr ? dim(` · PR #${e.pr}`) : ''}`);
 
-        for (const line of e.removed) out.push(red(`      - ${line.trim()}`));
-        for (const line of e.added) out.push(green(`      + ${line.trim()}`));
+        if (e.movedFrom) {
+            const { file: from, startLine: s, endLine: t } = e.movedFrom;
+            out.push(dim(`      moved from `) + cyan(`${from}:${fmtRange(s, t)}`));
+        } else {
+            for (const line of e.removed) out.push(red(`      - ${line.trim()}`));
+            for (const line of e.added) out.push(green(`      + ${line.trim()}`));
+        }
         out.push('');
     }
 

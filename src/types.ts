@@ -20,9 +20,19 @@ export interface LineEvent {
     readonly added: readonly string[];
     /**
      * Classification derived from removed/added: the line was born, edited,
-     * or deleted in this commit.
+     * or deleted in this commit — or `moved` here from {@link movedFrom},
+     * in which case the events after this one are its history there.
      */
-    readonly kind: 'born' | 'edited' | 'deleted';
+    readonly kind: 'born' | 'edited' | 'deleted' | 'moved';
+    /**
+     * For a `moved` event: repo-relative path and line range the lines had in
+     * the parent commit. May be the same file (a block moved within it).
+     */
+    readonly movedFrom?: {
+        readonly file: string;
+        readonly startLine: number;
+        readonly endLine: number;
+    };
     /**
      * Number of the pull request that merged this commit, when `--prs` found
      * one. The discussion itself lives in {@link Lineage.pulls}.
