@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { dirname, basename } from 'node:path';
+import { dirname, relative } from 'node:path';
 
 const run = promisify(execFile);
 
@@ -25,6 +25,11 @@ export class Git {
 
     static forFile(file: string): Git {
         return new Git(dirname(file) || '.');
+    }
+
+    /** `file` as a pathspec relative to this Git's cwd. */
+    private rel(file: string): string {
+        return relative(this.cwd, file);
     }
 
     private async git(args: readonly string[]): Promise<string> {
@@ -66,7 +71,7 @@ export class Git {
      * which the caller correctly reads as "no drift".
      */
     async diffFromHead(file: string): Promise<string> {
-        const rel = basename(file);
+        const rel = this.rel(file);
         try {
             return await this.git([
                 'diff',
@@ -98,7 +103,7 @@ export class Git {
     async existsAt(rev: string, file: string): Promise<boolean> {
         // `rev:./path` resolves the path against cwd, like other pathspecs.
         try {
-            await this.git(['cat-file', '-e', `${rev}:./${basename(file)}`]);
+            await this.git(['cat-file', '-e', `${rev}:./${this.rel(file)}`]);
             return true;
         } catch {
             return false;
@@ -107,7 +112,7 @@ export class Git {
 
     /** Full content of `file` (in this Git's cwd) as it stands at `rev`. */
     async contentAt(rev: string, file: string): Promise<string> {
-        return this.git(['show', `${rev}:./${basename(file)}`]);
+        return this.git(['show', `${rev}:./${this.rel(file)}`]);
     }
 
     /**
@@ -121,7 +126,7 @@ export class Git {
         end: number,
         rev?: string,
     ): Promise<string> {
-        const rel = basename(file);
+        const rel = this.rel(file);
         // \x1e (RS) marks a commit boundary; \x1f (US) separates header fields.
         const format = '%x1e%H%x1f%an%x1f%aI%x1f%s';
         return this.git([
@@ -130,6 +135,24 @@ export class Git {
             `--format=${format}`,
             `-L${start},${end}:${rel}`,
             ...(rev ? [rev] : []),
+        ]);
+    }
+
+    /**
+     * `git blame --line-porcelain` of `file` as `rev` left it, walking only
+     * `rev` itself: every line `rev` did not write is attributed to the
+     * boundary commit, under the path and line number it had there. With
+     * `-M -C` that includes lines `rev` moved in from elsewhere.
+     */
+    async blameCommit(rev: string, file: string): Promise<string> {
+        return this.git([
+            'blame',
+            '-M',
+            '-C',
+            '--line-porcelain',
+            `${rev}^..${rev}`,
+            '--',
+            this.rel(file),
         ]);
     }
 }

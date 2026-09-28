@@ -3,6 +3,57 @@
 Working notes. Newest first. Reasoning, verification, and mistakes — the stuff
 that doesn't belong in a commit message but is worth not re-deriving.
 
+## 2026-09-28 — follow moved code (`feat/follow-moves`)
+
+Backlog was empty, so I picked the gap I'd been stepping around: `git log -L`
+follows edits and whole-file renames, but a block cut from one file into
+another (or moved within one) is a pure `+` hunk to it. The reel ended at
+"extract helpers" and called that the birth — the least useful frame there
+is, since an extraction commit says nothing about why the code exists.
+Reproduced in a scratch repo before writing anything.
+
+Mechanism, in `followMoves` (trace.ts): if the oldest event is `born`, read
+the birth commit's path and post-image range off the last `log -L` record
+(`birthSite`), then `git blame -M -C --line-porcelain birth^..birth` on that
+file. The `^..` bound is the key trick — blame walks one commit, and every
+line the birth didn't write lands on the boundary commit *with its path and
+line number in the parent*. If the whole range maps to one file as one
+contiguous block, relabel the event `moved` (+ `movedFrom`), `log -L` that
+block from the parent, append, repeat (cap 20 hops).
+
+Things that bit or nearly bit:
+- `blame -C -L3,3` does **not** detect a single moved line — copy detection
+  scores a chunk against a 40-alnum-char threshold, and `-L` shrinks the chunk
+  to one line. Blaming the whole file (cheap, thanks to the bound) sees the
+  full moved block, then I slice our lines out.
+- `--porcelain` emits `filename` only on a sha's first appearance; lines 2+
+  of a block from the same commit have none. `--line-porcelain` repeats it.
+- The origin file may no longer exist on disk, so `Git.forFile(origin)`
+  would get a missing cwd. Switched Git's path handling from `basename` to
+  `relative(cwd, file)` and run the follow-ups from the repo root.
+- Unbounded `blame -M -C -C -C` oddly attributed everything to HEAD in one
+  probe. Didn't chase it; the bounded single `-C` form is what ships and is
+  what's tested.
+
+Deliberately strict: an edited-on-the-way block, a scattered origin, or a
+range that's only partly moved stays `born`. Same rule as func-trace —
+never a guess. Diff-level reorders where git's diff chose to move the
+*other* block show no change to our line at all; that's git's honest view
+and I left it.
+
+Rendering: `↪` + "moved from path:range" instead of repeating a diff that is
+identical to the history below it (CLI, web view, and the `--why` prompt,
+which skips the duplicate diff too). JSON: `kind: "moved"`, `movedFrom`.
+
+Verified: 88 tests (6 new), including the repo's first real-git integration
+test (`trace.test.ts`: two-hop move chain; edited-on-the-way stays born).
+Mutation-checked: `MAX_MOVES = 0` fails exactly that test. Scratch repos:
+cross-file extract (single line + range + funcName), two hops across dirs,
+in-file move, root-commit birth, partial move. Dogfood on this repo: no
+moves here, cost ~0.2s per trace. Web view driven in Chrome: `?t=` link →
+`/api/lore` 200, chain rendered, console clean. The autofocus quirk from last
+time bit again (first typing went nowhere); worth fixing someday.
+
 ## 2026-08-14 — web-view function tracing (`feat/web-func-trace`)
 
 The leftover from func-trace: `file:funcName` in the web view's paste box.

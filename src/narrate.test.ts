@@ -93,3 +93,23 @@ test('no merged PRs is said, not left blank', () => {
     const text = narratePulls(lineage({ pulls: [] }));
     assert.match(text, /no merged pull request found/);
 });
+
+test('a moved event names where it came from instead of repeating the diff', () => {
+    const out = narrate(
+        lineage({
+            events: [
+                event({
+                    kind: 'moved',
+                    subject: 'extract token helpers',
+                    added: ['return ok;'],
+                    movedFrom: { file: 'src/auth.ts', startLine: 40, endLine: 44 },
+                }),
+                event({ kind: 'born', added: ['return ok;'] }),
+            ],
+        }),
+        new Date('2026-01-02T00:00:00Z'),
+    );
+    assert.match(out, /↪ aaaaaaaaa/);
+    assert.match(out, /moved from src\/auth\.ts:40-44/);
+    assert.equal(out.match(/\+ return ok;/g)?.length, 1);
+});

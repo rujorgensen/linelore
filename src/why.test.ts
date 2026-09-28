@@ -71,6 +71,24 @@ test('prompt presents events oldest first with their diffs', () => {
     assert.match(prompt, /src\/auth\.ts, line 42/);
 });
 
+test('a move names its origin and skips the diff it only repeats', () => {
+    const [newest, ...older] = LINEAGE.events;
+    const prompt = buildWhyPrompt({
+        ...LINEAGE,
+        events: [
+            {
+                ...newest!,
+                subject: 'extract helpers',
+                kind: 'moved',
+                movedFrom: { file: 'src/old.ts', startLine: 7, endLine: 7 },
+            },
+            ...older,
+        ],
+    });
+    assert.match(prompt, /extract helpers \(\w+, moved from src\/old\.ts:7\)/);
+    assert.equal(prompt.match(/^\+ if \(exp < now - SKEW\) return false;$/gm), null);
+});
+
 test('a function trace names the function in the prompt', () => {
     const prompt = buildWhyPrompt({
         ...LINEAGE,

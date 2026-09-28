@@ -84,3 +84,61 @@ function extractChanges(body: string): {
 
     return { removed, added };
 }
+
+/** Where the oldest commit in a `git log -L` stream left the traced range. */
+export interface BirthSite {
+    /** Repo-relative path of the file in that commit. */
+    readonly path: string;
+    /** 1-based first line and line count, in that commit's version. */
+    readonly start: number;
+    readonly count: number;
+}
+
+/**
+ * The file and post-image range of the *last* record in a `git log -L`
+ * stream — the commit where the line was born. Position-gated like
+ * {@link extractChanges}: the path is the `+++` header before the first hunk.
+ */
+export function birthSite(raw: string): BirthSite | undefined {
+    const last = raw.split(RS).filter((r) => r.trim()).at(-1);
+    if (!last) return undefined;
+
+    let path: string | undefined;
+    for (const line of last.split('\n')) {
+        if (line.startsWith('+++ b/') && path === undefined) {
+            path = line.slice('+++ b/'.length);
+        } else if (line.startsWith('@@')) {
+            const m = /^@@ -\S+ \+(\d+)(?:,(\d+))? @@/.exec(line);
+            if (!m || path === undefined) return undefined;
+            return { path, start: Number(m[1]), count: Number(m[2] ?? 1) };
+        }
+    }
+    return undefined;
+}
+
+/** One line of `git blame --line-porcelain`: where the line came from. */
+export interface BlameSource {
+    readonly sha: string;
+    /** Repo-relative path in `sha`. */
+    readonly file: string;
+    /** 1-based line number in `sha`'s version of `file`. */
+    readonly line: number;
+}
+
+/** Parse `git blame --line-porcelain` into one source per final line, in order. */
+export function parseBlame(raw: string): BlameSource[] {
+    const out: BlameSource[] = [];
+    let sha = '';
+    let line = 0;
+    for (const l of raw.split('\n')) {
+        const header = /^([0-9a-f]{40}) (\d+) \d+/.exec(l);
+        if (header) {
+            sha = header[1]!;
+            line = Number(header[2]);
+        } else if (l.startsWith('filename ')) {
+            // Always the last header field before the tab-prefixed content.
+            out.push({ sha, file: l.slice('filename '.length), line });
+        }
+    }
+    return out;
+}

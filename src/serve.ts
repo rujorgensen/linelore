@@ -162,6 +162,7 @@ const PAGE = `<!doctype html>
   .born { color: var(--green); }
   .edited { color: var(--yellow); }
   .deleted { color: var(--red); }
+  .moved { color: var(--cyan); }
   .add { color: var(--green); }
   .del { color: var(--red); }
   .head { font-weight: 600; }
@@ -202,7 +203,7 @@ const PAGE = `<!doctype html>
     if (days < 365) return Math.floor(days / 30) + 'mo ago';
     return Math.floor(days / 365) + 'y ago';
   };
-  const GLYPH = { born: '\\u2731', edited: '\\u25cf', deleted: '\\u2715' };
+  const GLYPH = { born: '\\u2731', edited: '\\u25cf', deleted: '\\u2715', moved: '\\u21aa' };
 
   function render({ lineage, ref }) {
     out.replaceChildren();
@@ -241,8 +242,14 @@ const PAGE = `<!doctype html>
       ));
       d.append(line(el(null, '  ' + e.subject),
         ...(e.pr ? [el('dim', ' \\u00b7 PR #' + e.pr)] : [])));
-      for (const t of e.removed) d.append(line(el('del', '      - ' + t.trim())));
-      for (const t of e.added) d.append(line(el('add', '      + ' + t.trim())));
+      if (e.movedFrom) {
+        const f = e.movedFrom;
+        d.append(line(el('dim', '      moved from '), el('cyan', f.file + ':' +
+          (f.startLine === f.endLine ? f.startLine : f.startLine + '-' + f.endLine))));
+      } else {
+        for (const t of e.removed) d.append(line(el('del', '      - ' + t.trim())));
+        for (const t of e.added) d.append(line(el('add', '      + ' + t.trim())));
+      }
       out.append(d);
     }
   }

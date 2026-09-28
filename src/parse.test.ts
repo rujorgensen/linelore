@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseLog } from './parse.js';
+import { birthSite, parseBlame, parseLog } from './parse.js';
 
 const RS = '\x1e';
 const US = '\x1f';
@@ -123,4 +123,38 @@ test('returns newest-first for multiple commits', () => {
 
 test('empty input yields no events', () => {
     assert.deepEqual(parseLog(''), []);
+});
+
+test('birthSite reads the oldest record\'s path and post-image range', () => {
+    const newer = record(
+        { sha: 'b'.repeat(40), author: 'A', date: 'd', subject: 'edit' },
+        '\ndiff --git a/x.ts b/x.ts\n--- a/x.ts\n+++ b/x.ts\n@@ -9,1 +9,1 @@\n-a\n+b',
+    );
+    const oldest = record(
+        { sha: 'a'.repeat(40), author: 'A', date: 'd', subject: 'born' },
+        // a content line that looks like a header must not be read as the path
+        '\ndiff --git a/src/t.ts b/src/t.ts\n--- /dev/null\n+++ b/src/t.ts\n@@ -0,0 +2,3 @@\n++++ b/nope\n+x\n+y',
+    );
+    assert.deepEqual(birthSite(newer + oldest), { path: 'src/t.ts', start: 2, count: 3 });
+    assert.deepEqual(
+        birthSite(record({ sha: 'c'.repeat(40), author: '', date: '', subject: '' },
+            '+++ b/f\n@@ -0,0 +7 @@\n+x')),
+        { path: 'f', start: 7, count: 1 },
+    );
+    assert.equal(birthSite(''), undefined);
+});
+
+test('parseBlame yields one source per line, filename repeated per line', () => {
+    const a = 'a'.repeat(40);
+    const b = 'b'.repeat(40);
+    const raw = [
+        `${a} 1 1 1`, 'author t', 'summary s', 'filename token.ts', '\t// helpers',
+        `${b} 2 2 2`, 'author t', 'boundary', 'filename src/auth.ts', '\tfilename fake',
+        `${b} 3 3`, 'author t', 'boundary', 'filename src/auth.ts', '\t}',
+    ].join('\n');
+    assert.deepEqual(parseBlame(raw), [
+        { sha: a, file: 'token.ts', line: 1 },
+        { sha: b, file: 'src/auth.ts', line: 2 },
+        { sha: b, file: 'src/auth.ts', line: 3 },
+    ]);
 });
